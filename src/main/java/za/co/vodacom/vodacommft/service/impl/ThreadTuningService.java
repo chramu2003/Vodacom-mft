@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -26,7 +25,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class ThreadTuningService implements IThreadTuningService {
     private final static Logger thread_service_logger = LoggerFactory.getLogger(MFTValidationService.class);
 
-    final static ExecutorService threadPool = Executors.newFixedThreadPool(10);
     private static ThreadPoolExecutor threadPoolExecutorSplitter = null;
     private static ThreadPoolExecutor threadPoolExecutorTen = null;
     private static ThreadPoolExecutor threadPoolExecutorFive = null;
@@ -132,7 +130,7 @@ public class ThreadTuningService implements IThreadTuningService {
             if (threadPoolExecutorTen == null || threadPoolExecutorTen.isShutdown()) threadPoolExecutorTen = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
             CountDownLatch latch = new CountDownLatch(fileCount);
             for (String fileName : deliveryDetails.getList_of_file_metadata()) {
-                threadPool.execute(() -> {
+                threadPoolExecutorTen.execute(() -> {
                     try {
                         deliveryService.deliveryFileProcessing(deliveryDetails, fileName);
                         latch.countDown();
@@ -155,7 +153,7 @@ public class ThreadTuningService implements IThreadTuningService {
             if (threadPoolExecutorFive == null || threadPoolExecutorFive.isShutdown()) threadPoolExecutorFive = (ThreadPoolExecutor) Executors.newFixedThreadPool(5);
             CountDownLatch latch = new CountDownLatch(fileCount);
             for (String fileName : deliveryDetails.getList_of_file_metadata()) {
-                threadPool.execute(() -> {
+                threadPoolExecutorFive.execute(() -> {
                     try {
                         deliveryService.deliveryFileProcessing(deliveryDetails, fileName);
                         latch.countDown();
@@ -178,7 +176,7 @@ public class ThreadTuningService implements IThreadTuningService {
             if (threadPoolExecutorTwo == null || threadPoolExecutorTwo.isShutdown()) threadPoolExecutorTwo = (ThreadPoolExecutor) Executors.newFixedThreadPool(2);
             CountDownLatch latch = new CountDownLatch(fileCount);
             for (String fileName : deliveryDetails.getList_of_file_metadata()) {
-                threadPool.execute(() -> {
+                threadPoolExecutorTwo.execute(() -> {
                     try {
                         deliveryService.deliveryFileProcessing(deliveryDetails, fileName);
                         latch.countDown();
