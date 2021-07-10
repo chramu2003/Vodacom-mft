@@ -33,8 +33,6 @@ public class DeliverySchedule {
     @Autowired
     private PropertiesFileSysConfig properties_file_sys_config;
 
-    final static ExecutorService threadPool = Executors.newFixedThreadPool(3);
-
     private static final Logger delivery_sch_logger = LoggerFactory.getLogger(DeliverySchedule.class);
 
     @Scheduled(fixedRateString = "${fixedRate.in.milliseconds}", initialDelayString = "${initialDelay.in.milliseconds}") /*Its Alwyz good to get Values from the Prop Files or DB. Unfortunatels it only accepts application prop files ONLY*/
@@ -43,16 +41,8 @@ public class DeliverySchedule {
         if(properties_file_sys_config.getSwitchDeliveryScheduleOnAndOff().equalsIgnoreCase("ON")){
             delivery_sch_logger.info(new Date().toString()+ ": Delivery Schedule is Enabled...It can be disabled from VC Delivery Properties : \"DELIVERY_SCHEDULE_SWITCHED=OFF\" ");
             long startTime = System.currentTimeMillis();
-            List<String[]> distinctPendingDeliveryConsumerCodeAndRouteShortNames = pendingDeliveriesService.getDistinctConsumerCodeAndRouteShortName();
-            for (String[] consumerCodeAndRouteShortName : distinctPendingDeliveryConsumerCodeAndRouteShortNames) {
-                threadPool.execute(() -> {
-                    try {
-                        deliveryService.deliveryProcessing(consumerCodeAndRouteShortName[0], consumerCodeAndRouteShortName[1]);
-                    } catch (Exception e) {
-                        delivery_sch_logger.error("Failed to process Consume Code " + consumerCodeAndRouteShortName[0] + " Route ShortName " + consumerCodeAndRouteShortName[1] + " with Error ", e);
-                    }
-                });
-            }
+            List<String[]> pendingDeliveryList = pendingDeliveriesService.getDistinctConsumerCodeAndRouteShortName();
+            deliveryService.deliveryProcessing(pendingDeliveryList);
 
             long endTime = System.currentTimeMillis();
             delivery_sch_logger.info(new Date().toString()+ " : Delivery Process Took " + (endTime - startTime) + " ms");

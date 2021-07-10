@@ -1,9 +1,9 @@
 package za.co.vodacom.vodacommft.service;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
+import java.util.List;
 
 public interface IThreadTuningService {
 
-    void doFileProcessingWithThreads(String consumerCode, String routeShortName, BufferedWriter bw_del) throws IOException;
+    void doFileProcessingWithThreads(List<String[]> pendingDeliveryList, String workDirectory, String localDirectory) throws IOException;
 }

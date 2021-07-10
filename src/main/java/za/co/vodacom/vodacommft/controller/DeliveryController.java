@@ -34,6 +34,6 @@ public class DeliveryController {
     }
 
     private void deliveryProcessing(DeliveryCodeDTO deliveryCodeDTO) {
-        deliveryService.deliveryProcessing(deliveryCodeDTO.getConsumerCode(), deliveryCodeDTO.getRouteShortName());
+//        deliveryService.deliveryProcessing(deliveryCodeDTO.getConsumerCode(), deliveryCodeDTO.getRouteShortName());
     }
 }
