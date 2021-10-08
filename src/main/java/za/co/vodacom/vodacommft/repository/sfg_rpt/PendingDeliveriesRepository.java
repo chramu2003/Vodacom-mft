@@ -18,7 +18,7 @@ import java.util.Optional;
 @Repository
 public interface PendingDeliveriesRepository extends JpaRepository<PendingDeliveriesEntity, String> {
 
-    @Query(value="SELECT  PD.CONSUMER_CODE, PD.ROUTE_SHORT_NAME FROM PENDING_DELIVERIES PD GROUP BY PD.CONSUMER_CODE, PD.ROUTE_SHORT_NAME ORDER BY PD.CONSUMER_CODE, PD.ROUTE_SHORT_NAME", nativeQuery = true)
+    @Query(value="SELECT  PD.CONSUMER_CODE, PD.ROUTE_SHORT_NAME FROM PENDING_DELIVERIES PD WHERE PD.CONSUMER_CODE IS NOT NULL AND PD.ROUTE_SHORT_NAME IS NOT NULL GROUP BY PD.CONSUMER_CODE, PD.ROUTE_SHORT_NAME ORDER BY PD.CONSUMER_CODE, PD.ROUTE_SHORT_NAME", nativeQuery = true)
     List<String[]> getDistinctConsumerCodeAndRouteShortName();
 
     @Query(value="select pd.consumer_code, pd.route_short_name from pending_deliveries pd " +

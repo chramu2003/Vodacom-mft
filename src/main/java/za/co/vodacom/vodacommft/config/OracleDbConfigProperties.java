@@ -22,17 +22,14 @@ public class OracleDbConfigProperties {
 
     public String getOracleUserNameforCFG(){
         String oracle_username = environment.getProperty("vodaPool.user");
-        //System.out.println(">>>>> OracleUserNameforCFG :  " + oracle_username);
         return oracle_username;
     }
     public String getOracleUsernameForRPT(){
         String ora_username_rpt = environment.getProperty("vodaReportPool.user");
-       // System.out.println(">>>>> OracleUserNameforRPT :  " + ora_username_rpt);
         return ora_username_rpt;
     }
     public String getOracleUsernameForUSR(){
         String ora_username_usr = environment.getProperty("DB_USER");
-        //System.out.println(">>>>> OracleUserNameforUSR :  " + ora_username_usr);
         return ora_username_usr;
     }
     public String getOraclePassword(){
@@ -42,7 +39,6 @@ public class OracleDbConfigProperties {
     }
     public String getOracleUrl(){
         String oracle_url = environment.getProperty("DB_URL");
-        //System.out.println(">>>>> getOracleUrl :  " + oracle_url);
         return oracle_url;
     }
 

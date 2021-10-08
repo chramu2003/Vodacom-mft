@@ -159,25 +159,34 @@ public class DeliveryService implements IDeliveryService {
                         del_service_log.info("Thread.Name :-  " + threadName + " :Get SFTP Connection Details For Consumer:- " + deliveryDetails.getConsumerCode());
                         buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :Get SFTP Connection Details For Consumer:- " + deliveryDetails.getConsumerCode());
                         buff_buff.newLine();
-
+                        System.out.println("===================> deliveryDetails.getConsumerCode() = " + deliveryDetails.getConsumerCode());
                         String preferredAuth = deliveryDetails.getSftpProfDetailsEntity().getPreferredAuth();
+                        System.out.println("=============> preferredAuth = " + preferredAuth);
                         boolean passwordAuth = "PASSWORD".equalsIgnoreCase(preferredAuth);
                         buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " : Password Authentication :- " + passwordAuth);
                         buff_buff.newLine();
 
                         String userName = deliveryDetails.getSftpProfDetailsEntity().getRemote_user();
+                        System.out.println("===============  userName = " + userName);
                         String password = deliveryDetails.getPendingDeliveriesEntity().getConsumerPassword();
+                        System.out.println("==============> password = " + password);
                         String hostName = deliveryDetails.getSftpProfDetailsEntity().getRemote_host();
+                        System.out.println("==============> hostName = " + hostName);
                         int portNumber = deliveryDetails.getSftpProfDetailsEntity().getRemote_port();
+                        System.out.println("==============> portNumber = " + portNumber);
                         String publicKey = deliveryDetails.getPublicKeyFile();
+                        System.out.println("=============> publicKey = " + publicKey);
 
                         sftpClient = sftpClientService.sftpDelLogIn(preferredAuth, userName, password, hostName, portNumber, publicKey);
-                        if (sftpClient.isConnected()) {
+
+                        if (sftpClient != null && sftpClient.isConnected() ) {
                             int sftp_processed_files = sftpDeliveryFileProcessing(sftpClient, deliveryDetails, fileName, threadName, buff_buff);
                             buff_buff.write(LocalDateTime.now() + ": Thread.Name  " + threadName + "  :Total Sftp Files files Delivered = > " + sftp_processed_files +
                                     "\n  For Consumer :=>  " + deliveryDetails.getPendingDeliveriesEntity().getConsumerCode() +
                                     "\n For RoutShortName : => " + deliveryDetails.getPendingDeliveriesEntity().getRouteShortName());
                             buff_buff.newLine();
+                        } else {
+                            System.out.println("=============== SFTPCLIENT  is not connected Please Check !!!!= ");
                         }
 
                     } catch (Exception sftp_ex) {
@@ -258,14 +267,14 @@ public class DeliveryService implements IDeliveryService {
 
             if (file_processing_options.equalsIgnoreCase("compress")) {
                 String[] ftp_compressed_file_values = compressService.compressFile(deliveryDetails.getDeliveryDetailsEntity(),
-                                                                                    notificationSourceFile,
-                                                                                    localDirectory,
-                                                                                    ftp_files_tobe_delivered_array[0],
-                                                                                    ftp_files_tobe_delivered_array[1],
-                                                                                    ftp_files_tobe_delivered_array[2],
-                                                                                    ftp_files_tobe_delivered_array[6],
-                                                                                    threadName,
-                                                                                    buff_buff).split(";");
+                        notificationSourceFile,
+                        localDirectory,
+                        ftp_files_tobe_delivered_array[0],
+                        ftp_files_tobe_delivered_array[1],
+                        ftp_files_tobe_delivered_array[2],
+                        ftp_files_tobe_delivered_array[6],
+                        threadName,
+                        buff_buff).split(";");
                 ftp_files_tobe_delivered_array[2] = ftp_compressed_file_values[0];
                 ftp_files_tobe_delivered_array[6] = ftp_compressed_file_values[1];
             }
@@ -273,11 +282,11 @@ public class DeliveryService implements IDeliveryService {
             if (file_processing_options.equalsIgnoreCase("uncompress")) {
                 String uncompressedDirectory = localDirectory + ftp_files_tobe_delivered_array[0] + "/";
                 compressService.decompressFile(ftp_files_tobe_delivered_array[1],
-                                                ftp_files_tobe_delivered_array[2],
-                                                uncompressedDirectory,
-                                                deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
-                                                threadName,
-                                                buff_buff);
+                        ftp_files_tobe_delivered_array[2],
+                        uncompressedDirectory,
+                        deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
+                        threadName,
+                        buff_buff);
             }
 
 
@@ -401,6 +410,8 @@ public class DeliveryService implements IDeliveryService {
         List<String> sftp_age_analysis_list = new ArrayList<>();
 
         String localDirectory = deliveryDetails.getLocal_working_dir();
+        System.out.println("==============> SFTP localDirectory = " + localDirectory);
+
         String protocol = deliveryDetails.getPendingDeliveriesEntity().getConsumerProtocol();
         String ftpHostName = deliveryDetails.getFtp_host();
         String remoteHostName = deliveryDetails.getSftpProfDetailsEntity().getRemote_host();
@@ -434,32 +445,39 @@ public class DeliveryService implements IDeliveryService {
         String newPermissionString = deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString();
         /*Very important info : --> PD_UID[0];FILENAME_ON_DISK[1];DESTINATION_FILENAME[2];DATA_FLOWID[3];ROUTE_METADATA[4];DELIVER_UID[5];COPY_OF_FILENAME_ON_FISK[6] */
         for (String file_processing_options : getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff)) {
+            System.out.println(" >>>>>>>>>>>>>>>>>>>> SFTP file_processing_options = " + file_processing_options);
             if (file_processing_options.equalsIgnoreCase("compress")) {
                 //Compress a file before delivering TODO: Herbie to check Compressed_file name
-                String[] sftp_compressed_file_values = compressService.compressFile(deliveryDetails.getDeliveryDetailsEntity(),
-                                                                                    notificationSourceFile,
-                                                                                    localDirectory,
-                                                                                    sftp_files_tobe_delivered_array[0],
-                                                                                    sftp_files_tobe_delivered_array[1],
-                                                                                    sftp_files_tobe_delivered_array[2],
-                                                                                    sftp_files_tobe_delivered_array[6],
-                                                                                    threadName,
-                                                                                    buff_buff).split(";");
+                System.out.println(" >>>>>>>>>>>>>>>>>>>> About to invoke Compression ");
+                 String compressFileStr = compressService.compressFile(
+                         deliveryDetails.getDeliveryDetailsEntity(),
+                        notificationSourceFile,
+                        localDirectory,
+                        sftp_files_tobe_delivered_array[0],
+                        sftp_files_tobe_delivered_array[1],
+                        sftp_files_tobe_delivered_array[2],
+                        sftp_files_tobe_delivered_array[6],
+                        threadName,
+                        buff_buff);
 
-                sftp_files_tobe_delivered_array[2] = sftp_compressed_file_values[0];
-                sftp_files_tobe_delivered_array[6] = sftp_compressed_file_values[1];
+                     if (compressFileStr != null && compressFileStr.contains(";")) {
+                         String[] sftp_compressed_file_values = compressFileStr.split(";");
+                         sftp_files_tobe_delivered_array[2] = sftp_compressed_file_values[0];
+                         sftp_files_tobe_delivered_array[6] = sftp_compressed_file_values[1];
+                     }
+
             }
 
             if (file_processing_options.equalsIgnoreCase("uncompress")) {
                 //Uncompress a file before delivering
                 String[] sftp_uncompressed_file_values=  uncompressAFile(localDirectory,
-                                                                        sftp_files_tobe_delivered_array[0],
-                                                                        sftp_files_tobe_delivered_array[1],
-                                                                        sftp_files_tobe_delivered_array[2],
-                                                                        sftp_files_tobe_delivered_array[6],
-                                                                        deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
-                                                                        threadName,
-                                                                        buff_buff).split(";");
+                        sftp_files_tobe_delivered_array[0],
+                        sftp_files_tobe_delivered_array[1],
+                        sftp_files_tobe_delivered_array[2],
+                        sftp_files_tobe_delivered_array[6],
+                        deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
+                        threadName,
+                        buff_buff).split(";");
                 sftp_files_tobe_delivered_array[2] = sftp_uncompressed_file_values[0];
                 sftp_files_tobe_delivered_array[6] = sftp_uncompressed_file_values[1];
             }
@@ -493,6 +511,7 @@ public class DeliveryService implements IDeliveryService {
                 sftp_delivery_status = "92";
                 if(sftp_tmp_error_count == 0) {
                     sftp_error_count++;
+
                     deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
                 }
             }
@@ -636,37 +655,37 @@ public class DeliveryService implements IDeliveryService {
         String notificationSourceFile = propertiesConfig.getNotificationSourceFile();
         String localDirectory = deliveryDetails.getLocal_working_dir();
         String protocol = deliveryDetails.getPendingDeliveriesEntity().getConsumerProtocol();
-        String ftpHostName = deliveryDetails.getFtp_host();
-        String remoteHostName = deliveryDetails.getSftpProfDetailsEntity().getRemote_host();
+       /* String ftpHostName = deliveryDetails.getFtp_host();
+        String remoteHostName1 = deliveryDetails.getSftpProfDetailsEntity().getRemote_host();*/
         String changeDirector = deliveryDetails.getPendingDeliveriesEntity().getConsumerRemoteDir();
-        String remoteDirectory = getRemoteDirectory(changeDirector, protocol, ftpHostName, remoteHostName);
+        String remoteDirectory = getRemoteDirectory(changeDirector, protocol, "", "");
         String newPermissionString =  deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString();
 
         for (String file_processing_options : getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff)) {
 
             if (file_processing_options.equalsIgnoreCase("compress")) {
                 String[] oscopy_compressed_file_values = compressService.compressFile(deliveryDetails.getDeliveryDetailsEntity(),
-                                                                                      notificationSourceFile,
-                                                                                      localDirectory,
-                                                                                      oscopy_files_tobe_delivered_array[0],
-                                                                                      oscopy_files_tobe_delivered_array[1],
-                                                                                      oscopy_files_tobe_delivered_array[2],
-                                                                                      oscopy_files_tobe_delivered_array[6],
-                                                                                      threadName,
-                                                                                      buff_buff).split(";");
+                        notificationSourceFile,
+                        localDirectory,
+                        oscopy_files_tobe_delivered_array[0],
+                        oscopy_files_tobe_delivered_array[1],
+                        oscopy_files_tobe_delivered_array[2],
+                        oscopy_files_tobe_delivered_array[6],
+                        threadName,
+                        buff_buff).split(";");
                 oscopy_files_tobe_delivered_array[2] = oscopy_compressed_file_values[0];
                 oscopy_files_tobe_delivered_array[6] = oscopy_compressed_file_values[1];
             }
 
             if (file_processing_options.equalsIgnoreCase("uncompress")) {
                 String[] oscopy_uncompressed_file_values=  uncompressAFile(localDirectory,
-                                                                            oscopy_files_tobe_delivered_array[0],
-                                                                            oscopy_files_tobe_delivered_array[1],
-                                                                            oscopy_files_tobe_delivered_array[2],
-                                                                            oscopy_files_tobe_delivered_array[6],
-                                                                            deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
-                                                                            threadName,
-                                                                            buff_buff).split(";");
+                        oscopy_files_tobe_delivered_array[0],
+                        oscopy_files_tobe_delivered_array[1],
+                        oscopy_files_tobe_delivered_array[2],
+                        oscopy_files_tobe_delivered_array[6],
+                        deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
+                        threadName,
+                        buff_buff).split(";");
 
                 oscopy_files_tobe_delivered_array[2] = oscopy_uncompressed_file_values[0];
                 oscopy_files_tobe_delivered_array[6] = oscopy_uncompressed_file_values[1];
@@ -723,7 +742,7 @@ public class DeliveryService implements IDeliveryService {
             try {
                 osCopyService.copyToOS(oscopy_files_tobe_delivered_array[6], remoteDirectory + oscopy_files_tobe_delivered_array[2]);
                 if (!permissions.equals("") && changePermissionCheck) {
-                    consumerProtocolChangePermissions(null, null, remoteHostName + oscopy_files_tobe_delivered_array[2], permissions, protocol, newPermissionString);
+                    consumerProtocolChangePermissions(null, null, changeDirector + oscopy_files_tobe_delivered_array[2], permissions, protocol, newPermissionString);
                 }
 
             } catch (IOException e) {
@@ -1067,10 +1086,13 @@ public class DeliveryService implements IDeliveryService {
             dir = dir.replace(dir.substring(pos, (pos + endFormat + 1)), dateString);
         }
 
-        if ("FTP".equalsIgnoreCase(protocol)) {
-            dir = dir.replace("[$Hostname]", ftpHostName);
-        } else {
-            dir = dir.replace("[$Hostname]", remoteHostName);
+
+        while (dir.contains("$CurrDate") || dir.contains("$PrevDate")) {
+            if ("FTP".equalsIgnoreCase(protocol)) {
+                dir = dir.replace("[$Hostname]", ftpHostName);
+            } else {
+                dir = dir.replace("[$Hostname]", remoteHostName);
+            }
         }
         return dir;
     }
@@ -1103,7 +1125,10 @@ public class DeliveryService implements IDeliveryService {
     }
 
     private void deleteTempDirs(String localDirectory, String fileName) throws IOException {
+        System.out.println("+++++++++++++localDirectory = " + localDirectory +" : Filename" +  fileName);
+
         Path delete_directory = Paths.get(localDirectory + fileName);
+        System.out.println("+++++++++++++DELETE Directory = " + localDirectory +  fileName);
         Files.delete(delete_directory);
         del_service_log.info(new Date().toString() + ": Deleted Temp Directory  : - " + localDirectory + fileName + ".....");
     }
@@ -1191,11 +1216,11 @@ public class DeliveryService implements IDeliveryService {
             String uncompressed_file_name = "";
 
             uncompressed_file_name = compressService.decompressFile(file_name_on_disc_1,
-                                                                    file_name_2,
-                                                                    uncompressed_directory,
-                                                                    uncompress_type,
-                                                                    thread_name,
-                                                                    bw_cmp);
+                    file_name_2,
+                    uncompressed_directory,
+                    uncompress_type,
+                    thread_name,
+                    bw_cmp);
             if (!uncompressed_file_name.equals("")){
                 file_name_2 = uncompressed_file_name;
                 file_name_6 = uncompressed_directory + uncompressed_file_name;

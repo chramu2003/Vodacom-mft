@@ -5,6 +5,7 @@ package za.co.vodacom.vodacommft.service.impl;
  */
 
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,14 +13,19 @@ import org.springframework.stereotype.Service;
 import za.co.vodacom.vodacommft.config.PropertiesFileSysConfig;
 import za.co.vodacom.vodacommft.service.IDirectoryService;
 import za.co.vodacom.vodacommft.service.IFileDeliveryService;
+import za.co.vodacom.vodacommft.service.ILockService;
 import za.co.vodacom.vodacommft.service.IThreadTuningService;
 
-import java.io.BufferedWriter;
 import java.util.List;
-
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+@Slf4j
 @Service
 public class FileDeliveryService implements IFileDeliveryService {
     private static final Logger logger = LoggerFactory.getLogger(FileDeliveryService.class);
+
+    private ThreadPoolExecutor threadPoolExecutorTen = null;
 
     @Autowired
     private PropertiesFileSysConfig systemCfgProperties;
@@ -30,6 +36,9 @@ public class FileDeliveryService implements IFileDeliveryService {
     @Autowired
     private IThreadTuningService threadTuningService;
 
+    @Autowired
+    private ILockService lockService;
+
 
     @Override
     @SneakyThrows
@@ -39,10 +48,41 @@ public class FileDeliveryService implements IFileDeliveryService {
             String localDirectory = systemCfgProperties.getLocalWorkingDirectory();
             String workDirectory = localDirectory + "running/";
             directory_service.createDeliveryWorkingDirectories(workDirectory);
-            threadTuningService.doFileProcessingWithThreads(pendingDeliveryList, workDirectory, localDirectory);
+
+            if (pendingDeliveryList != null && pendingDeliveryList.size() > 0) {
+                doDeliveryWithTenThreads(pendingDeliveryList, workDirectory, localDirectory);
+            }
 
         } catch (Exception e) {
             logger.error("Error while calling file processing logic :- ", e);
+        }
+    }
+
+    private void doDeliveryWithTenThreads(List<String[]> pendingDeliveryList, String workDirectory, String localDirectory) {
+        try {
+            if (threadPoolExecutorTen == null || threadPoolExecutorTen.isShutdown()) threadPoolExecutorTen = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+            CountDownLatch latch = new CountDownLatch(pendingDeliveryList.size());
+            for (String[] pendingDelivery : pendingDeliveryList) {
+                threadPoolExecutorTen.execute(() -> {
+                    String consumerCode = pendingDelivery[0];
+                    String routeShortName = pendingDelivery[1];
+                    try {
+                        if (lockService.addLock(consumerCode)) {
+                            threadTuningService.doFileProcessingWithThreads(consumerCode, routeShortName, workDirectory, localDirectory);
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to process Consumer Code & Route Short Name [{}/{}/{}] with the following error message", consumerCode, routeShortName, e);
+                    } finally {
+                        lockService.releaseLock(consumerCode);
+                    }
+                    latch.countDown();
+                });
+            }
+            latch.await();
+        }catch (InterruptedException e) {
+            log.error("Exception while processing consumer code", e);
+        } finally {
+            if(!threadPoolExecutorTen.isShutdown())threadPoolExecutorTen.shutdown();
         }
     }
 }

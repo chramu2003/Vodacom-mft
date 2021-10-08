@@ -10,8 +10,8 @@
         <module name="VodacomMFT" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="VodacomMFT" target="1.8" />
+    <bytecodeTargetLevel target="11">
+      <module name="VodacomMFT" target="11" />
     </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">

@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.Locale;
 import java.util.zip.*;
 
 @Service
@@ -48,10 +49,14 @@ public class CompressService implements ICompressService {
         String final_compressed_file = "";
 
         String compress_extension = deliveryDetails.getCompressExt();
+        System.out.println("======== compress_extension B4 Replace = " + compress_extension);
         String compress_ext = compress_extension.replaceFirst(".", "");
+        System.out.println("======== compress_extension After Replace = " + compress_ext);
+        System.out.println("========>>>>> localDirectory = " + localDirectory);
         Path temp_file_to_compress_dir = createTempDirectoriesForFileArchive(localDirectory + file_value_0);
+        String actualFile = temp_file_to_compress_dir+ "/"+ file_value_2.trim();
 
-        Path temp_file_to_compress =  Paths.get(temp_file_to_compress_dir+ "/"+ file_value_2.trim());
+        Path temp_file_to_compress =  Paths.get(actualFile);
         compress_logger.info(new Date().toString()+ ": SFG  File to Compress is : "+temp_file_to_compress.getFileName());
 
         String source_file_path = file_value_1.trim();
@@ -67,24 +72,48 @@ public class CompressService implements ICompressService {
             Files.copy(notify_source_file, temp_file_to_compress);
         }
 
-        switch(compress_ext){
+        switch(compress_ext.toLowerCase()){
             case "zip": {
                 compress_logger.info(LocalDateTime.now() + ": Zip File Compression for Location :- " + temp_file_to_compress.toFile().getAbsolutePath());
 
-                String temp_file_is_compressed = temp_file_to_compress.toFile().getAbsolutePath() + compress_extension;
-                zipCompressFile(temp_file_to_compress, temp_file_is_compressed);
+               // String temp_file_is_compressed = temp_file_to_compress.toFile().getAbsolutePath() + compress_extension;
+                /*String compressFileName = "", tempExt = "", lastChar = "", checkChar = "";
 
-                compressed_file_name = temp_file_is_compressed;
-                file_name_value_2 = temp_file_to_compress.getFileName() + compress_extension;
-                file_name_value_6 = compressed_file_name;
+                compressFileName = actualFile;
+                    if(compress_extension != null && !compress_extension.trim().equalsIgnoreCase("") && !compress_extension.trim().equalsIgnoreCase("none")){
+                        tempExt = compress_extension.trim();
+                        lastChar = compressFileName.substring(compressFileName.length()-1, compressFileName.length());
+                        checkChar = lastChar.toUpperCase();
+                        if(lastChar.equals(checkChar)){
+                            tempExt = tempExt.toUpperCase();
+                        }else{
+                            tempExt = tempExt.toLowerCase();
+                        }
+                        if(compressFileName.contains(".")){
+                            compressFileName = compressFileName.substring(0, compressFileName.lastIndexOf(".")) + compress_extension;
+                        }else{
+                            compressFileName = compressFileName + compress_extension;
+                        }
+                    }*/
+                String compressFileName = getCompressNameUtility(actualFile, compress_extension);
+
+                zipCompressFile(temp_file_to_compress, compressFileName);
+                System.out.println(" Chatsha======= >>>    compressFileName = " + compressFileName);
+                //compressed_file_name = temp_file_is_compressed;
+
+                file_name_value_6 = temp_file_to_compress.getFileName() + compress_extension;
+                System.out.println("Chatsha =========== >  file_name_value_2 = " + file_name_value_2);
+                file_name_value_2 = compressFileName;
                 final_compressed_file = file_name_value_2 + ";" + file_name_value_6;
+                System.out.println("Chatsha =======> final_compressed_file = " + final_compressed_file);
 
                 break;
             }
             case "gzip": case "gz": {
                 compress_logger.info(new Date().toString() + ": GZip File Compression for :- " + temp_file_to_compress + " To  : " + temp_file_to_compress + "." + compress_ext);
+                String compressFileName = getCompressNameUtility(actualFile, compress_extension);
 
-                Path gzip_file_is_compressed = Paths.get(temp_file_to_compress.toFile().getAbsolutePath() + compress_extension);
+                Path gzip_file_is_compressed = Paths.get(compressFileName);
                 InputStream fis = Files.newInputStream(temp_file_to_compress);
                 GZIPOutputStream gzipOS = new GZIPOutputStream(Files.newOutputStream(gzip_file_is_compressed));
                 IOUtils.copy(fis, gzipOS);
@@ -99,8 +128,8 @@ public class CompressService implements ICompressService {
             }
             case "bzip": case "bz2": {
                 compress_logger.info(new Date().toString() + ": BZip File Compression for :- " + temp_file_to_compress + " To  : " + temp_file_to_compress + "." + compress_ext);
-
-                Path bzip_file_to_compress = Paths.get(temp_file_to_compress.toFile().getAbsolutePath() + compress_extension);
+                String compressFileName = getCompressNameUtility(actualFile, compress_extension);
+                Path bzip_file_to_compress = Paths.get(compressFileName);
                 InputStream fis = Files.newInputStream(temp_file_to_compress);
                 BZip2CompressorOutputStream bzipOS = new BZip2CompressorOutputStream(Files.newOutputStream(bzip_file_to_compress));
                 IOUtils.copy(fis, bzipOS);
@@ -132,6 +161,30 @@ public class CompressService implements ICompressService {
             }
         }
         return final_compressed_file;
+    }
+
+    private String getCompressNameUtility(String actualFile, String compress_extension){
+        String compressFileName = "", tempExt = "", lastChar = "", checkChar = "";
+
+        compressFileName = actualFile;
+        if(compress_extension != null && !compress_extension.trim().equalsIgnoreCase("") && !compress_extension.trim().equalsIgnoreCase("none")){
+            tempExt = compress_extension.trim();
+            lastChar = compressFileName.substring(compressFileName.length()-1, compressFileName.length());
+            checkChar = lastChar.toUpperCase();
+            if(lastChar.equals(checkChar)){
+                tempExt = tempExt.toUpperCase();
+            }else{
+                tempExt = tempExt.toLowerCase();
+            }
+            if(compressFileName.contains(".")){
+                compressFileName = compressFileName.substring(0, compressFileName.lastIndexOf(".")) + compress_extension;
+            }else{
+                compressFileName = compressFileName + compress_extension;
+            }
+        }
+
+        return compressFileName;
+
     }
 
 
