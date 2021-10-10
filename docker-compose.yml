@@ -1,0 +1,35 @@
+version: '3'
+services:
+  lb:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    depends_on:
+      - mft-service1
+      - mft-service2
+  mft-service1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - /Users/rchennupati/Documents/momentum/Personal/vodacom/:/data/config/properties/
+    ports:
+      - "8181:8080"
+  mft-service2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - /Users/rchennupati/Documents/momentum/Personal/vodacom/:/data/config/properties/
+    ports:
+      - "8182:8080"
+  mft-service3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - /Users/rchennupati/Documents/momentum/Personal/vodacom/:/data/config/properties/
+    ports:
+      - "8183:8080"
