@@ -231,12 +231,13 @@ public class DeliveryService implements IDeliveryService {
         }
     }
 
-    private int ftpDeliveryFileProcessing(FTPClient ftp_client, DeliveryDetailsDTO deliveryDetails, String fileName, String threadName, BufferedWriter buff_buff) throws IOException, SftpException {
+    private int ftpDeliveryFileProcessing(FTPClient ftp_client, DeliveryDetailsDTO deliveryDetails, String file_metadata, String threadName, BufferedWriter buff_buff) throws IOException, SftpException {
 
         String ftpHost = deliveryDetails.getFtp_host();
         String remoteHost = deliveryDetails.getSftpProfDetailsEntity().getRemote_host();
         PendingDeliveriesEntity pendingDelivery = deliveryDetails.getPendingDeliveriesEntity();
         String changePermission = deliveryDetails.getDeliveryDetailsEntity().getChangeFilePermissions();
+        String consumer_code = pendingDelivery.getConsumerCode();
 
         List<String> ftp_age_analysis_list = new ArrayList<>();
         String ftp_remote_consumer_dir = getRemoteDirectory(pendingDelivery.getConsumerRemoteDir(), pendingDelivery.getConsumerProtocol(), ftpHost, remoteHost);
@@ -259,114 +260,135 @@ public class DeliveryService implements IDeliveryService {
 
         String notificationSourceFile = propertiesConfig.getNotificationSourceFile();
         String localDirectory = deliveryDetails.getLocal_working_dir();
-        String[] ftp_files_tobe_delivered_array = fileName.split(";");
+        String[] ftp_files_tobe_delivered_array = file_metadata.split(";");
         String protocol = deliveryDetails.getPendingDeliveriesEntity().getConsumerProtocol();
         String newPermissionString = deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString();
+        String[] ftp_route_metaData = new String[6];;
 
-        for (String file_processing_options : getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff)) {
+        if (!doesSFGFilExist(ftp_files_tobe_delivered_array[6])) {
 
-            if (file_processing_options.equalsIgnoreCase("compress")) {
-                String[] ftp_compressed_file_values = compressService.compressFile(deliveryDetails.getDeliveryDetailsEntity(),
-                        notificationSourceFile,
-                        localDirectory,
-                        ftp_files_tobe_delivered_array[0],
-                        ftp_files_tobe_delivered_array[1],
-                        ftp_files_tobe_delivered_array[2],
-                        ftp_files_tobe_delivered_array[6],
-                        threadName,
-                        buff_buff).split(";");
-                ftp_files_tobe_delivered_array[2] = ftp_compressed_file_values[0];
-                ftp_files_tobe_delivered_array[6] = ftp_compressed_file_values[1];
-            }
+            System.out.println("Thread:" + threadName + new Date().toString() + ">>>> File Name: " + ftp_files_tobe_delivered_array[6] + "for Consumer_Code:-->"+consumer_code +" < DOES NOT EXIST IN FILE SYSTEM, Lets Continue to the Next Files.......");
+            buff_buff.write("Thread:" + threadName + new Date().toString() + " >>>> File Name: " + ftp_files_tobe_delivered_array[6] + "for Consumer_Code:-->"+consumer_code +" < DOES NOT EXIST IN FILE SYSTEM, Lets Continue to the Next Files......."); // + " ftp command " + listOfFilenames[i]);
+            buff_buff.newLine();
+            ftp_delivery_status = "92";
+            System.out.println(new Date().toString() + "Thread:" + threadName + " :- >>>>>>> Check UpdateStatus Value:- " + ftp_delivery_status);
 
-            if (file_processing_options.equalsIgnoreCase("uncompress")) {
-                String uncompressedDirectory = localDirectory + ftp_files_tobe_delivered_array[0] + "/";
-                compressService.decompressFile(ftp_files_tobe_delivered_array[1],
-                        ftp_files_tobe_delivered_array[2],
-                        uncompressedDirectory,
-                        deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
-                        threadName,
-                        buff_buff);
-            }
+        }else {
 
+        // for (String file_processing_options : getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff)) {
 
-            if (file_processing_options.equalsIgnoreCase("rename")) {
-                //Rename a file before delivering
-                String filePattern = deliveryDetails.getDeliveryDetailsEntity().getNewFileNamePattern();
-                ftp_files_tobe_delivered_array[2] = renameAFile(ftp_files_tobe_delivered_array[2], filePattern);
-            }
-
-            if (file_processing_options.equalsIgnoreCase("remove")) {
-                //Remove characters
-                removeCharsFromAFile(ftp_files_tobe_delivered_array, localDirectory, deliveryDetails.getDeliveryDetailsEntity().getRemoveChars());
-            }
+        Map<String, String> file_processing_options = getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff);
+        if ("compress".equalsIgnoreCase(file_processing_options.get("compress"))) {
+            String[] ftp_compressed_file_values = compressService.compressFile(deliveryDetails.getDeliveryDetailsEntity(),
+                    notificationSourceFile,
+                    localDirectory,
+                    ftp_files_tobe_delivered_array[0],
+                    ftp_files_tobe_delivered_array[1],
+                    ftp_files_tobe_delivered_array[2],
+                    ftp_files_tobe_delivered_array[6],
+                    threadName,
+                    buff_buff).split(";");
+            ftp_files_tobe_delivered_array[2] = ftp_compressed_file_values[0];
+            ftp_files_tobe_delivered_array[6] = ftp_compressed_file_values[1];
         }
 
-        if (getRemoteAction(deliveryDetails.getDeliveryDetailsEntity().getDestFileAction()).equalsIgnoreCase("RENAME")) {
-            ftp_client.rename(ftp_remote_consumer_dir + ftp_files_tobe_delivered_array[2], ftp_remote_consumer_dir + ftp_files_tobe_delivered_array[2] + date_to_file_append);
+        if ("uncompress".equalsIgnoreCase(file_processing_options.get("uncompress"))) {
+            String uncompressedDirectory = localDirectory + ftp_files_tobe_delivered_array[0] + "/";
+            compressService.decompressFile(ftp_files_tobe_delivered_array[1],
+                    ftp_files_tobe_delivered_array[2],
+                    uncompressedDirectory,
+                    deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
+                    threadName,
+                    buff_buff);
         }
 
-        String deliver_with_temp_name = deliveryDetails.getDeliveryDetailsEntity().getUseTempName();
-        String permissions = getChmodDetails(deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString());
-        if (getDeliverWithTempName(deliver_with_temp_name).equalsIgnoreCase("yes")) {
 
-            try {
+        if ("rename".equalsIgnoreCase(file_processing_options.get("rename"))) {
+            //Rename a file before delivering
+            String filePattern = deliveryDetails.getDeliveryDetailsEntity().getNewFileNamePattern();
+            ftp_files_tobe_delivered_array[2] = renameAFile(ftp_files_tobe_delivered_array[2], filePattern);
+        }
 
-                ftp_client.deleteFile(ftp_files_tobe_delivered_array[2]);
-                InputStream file_in_stream = new FileInputStream(ftp_files_tobe_delivered_array[6]);
-                ftp_client.storeFile(ftp_files_tobe_delivered_array[0], file_in_stream);
+        if ("remove".equalsIgnoreCase(file_processing_options.get("remove"))) {
+            //Remove characters
+            removeCharsFromAFile(ftp_files_tobe_delivered_array, localDirectory, deliveryDetails.getDeliveryDetailsEntity().getRemoveChars());
+        }
 
-            } catch (IOException fd) {
-                del_service_log.error(": Thread.Name :-  " + threadName + " :- FTP PUT error occurred. This is fatal. " + fd.getMessage()+ ", Consumer is : "+ deliveryDetails.getConsumerCode());
-                buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- FTP PUT error occurred. This is fatal. " + fd.getMessage()+ ", Consumer is : "+ deliveryDetails.getConsumerCode());
-                buff_buff.newLine();
-                ftp_delivery_status = "92";
-                if(ftp_tmp_error_count == 0) {
-                    deleteTempDirs(localDirectory, ftp_files_tobe_delivered_array[0]);
+        // }
+
+
+            if (getRemoteAction(deliveryDetails.getDeliveryDetailsEntity().getDestFileAction()).equalsIgnoreCase("RENAME")) {
+                ftp_client.rename(ftp_remote_consumer_dir + ftp_files_tobe_delivered_array[2], ftp_remote_consumer_dir + ftp_files_tobe_delivered_array[2] + date_to_file_append);
+            }
+
+            String deliver_with_temp_name = deliveryDetails.getDeliveryDetailsEntity().getUseTempName();
+            String permissions = getChmodDetails(deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString());
+            if (getDeliverWithTempName(deliver_with_temp_name).equalsIgnoreCase("yes")) {
+
+                try {
+
+                    ftp_client.deleteFile(ftp_files_tobe_delivered_array[2]);
+                    InputStream file_in_stream = new FileInputStream(ftp_files_tobe_delivered_array[6]);
+                    ftp_client.storeFile(ftp_files_tobe_delivered_array[0], file_in_stream);
+
+                } catch (IOException fd) {
+                    del_service_log.error(": Thread.Name :-  " + threadName + " :- FTP PUT error occurred. This is fatal. " + fd.getMessage() + ", Consumer is : " + deliveryDetails.getConsumerCode());
+                    buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- FTP PUT error occurred. This is fatal. " + fd.getMessage() + ", Consumer is : " + deliveryDetails.getConsumerCode());
+                    buff_buff.newLine();
+                    ftp_delivery_status = "92";
+                    if (ftp_tmp_error_count == 0) {
+                        if (doesSFGFilExist(localDirectory + ftp_files_tobe_delivered_array[0])) {
+                            deleteTempDirs(localDirectory, ftp_files_tobe_delivered_array[0]);
+                        }
+                    }
+                }
+
+                if (!permissions.isEmpty() && changePermissionCheck) {
+                    consumerProtocolChangePermissions(ftp_client, null, ftp_remote_consumer_dir + ftp_files_tobe_delivered_array[0], permissions, protocol, newPermissionString);
+                }
+                ftp_client.rename(ftp_files_tobe_delivered_array[0], ftp_files_tobe_delivered_array[2]);
+
+            } else {
+
+                InputStream file_input_stream = new FileInputStream(ftp_files_tobe_delivered_array[6]);
+                try {
+                    ftp_client.storeFile(ftp_files_tobe_delivered_array[2], file_input_stream);
+                } catch (Exception ftp_clt) {
+                    if (doesSFGFilExist(localDirectory + ftp_files_tobe_delivered_array[0])) {
+                        deleteTempDirs(localDirectory, ftp_files_tobe_delivered_array[0]);
+                    }
+                    del_service_log.error(new Date().toString() + ": Thread.Name :-  " + threadName + " :-  FTP PUT Error occurred On FTP DeliverWithoutTemName!!!. This is fatal. " + ftp_clt.getMessage());
+                }
+                if (!permissions.isEmpty() && changePermissionCheck) {
+                    consumerProtocolChangePermissions(ftp_client, null, ftp_files_tobe_delivered_array[2], permissions, protocol, newPermissionString);
                 }
             }
 
-            if (!permissions.isEmpty() && changePermissionCheck) {
-                consumerProtocolChangePermissions(ftp_client, null, ftp_remote_consumer_dir + ftp_files_tobe_delivered_array[0], permissions, protocol, newPermissionString);
-            }
-            ftp_client.rename(ftp_files_tobe_delivered_array[0], ftp_files_tobe_delivered_array[2]);
-
-        } else {
-
-            InputStream file_input_stream = new FileInputStream(ftp_files_tobe_delivered_array[6]);
-            try {
-                ftp_client.storeFile(ftp_files_tobe_delivered_array[2], file_input_stream);
-            } catch (Exception ftp_clt) {
-                deleteTempDirs(localDirectory, ftp_files_tobe_delivered_array[0]);
-                del_service_log.error(new Date().toString()+ ": Thread.Name :-  " + threadName + " :-  FTP PUT Error occurred On FTP DeliverWithoutTemName!!!. This is fatal. " + ftp_clt.getMessage());
-            }
-            if (!permissions.isEmpty() && changePermissionCheck) {
-                consumerProtocolChangePermissions(ftp_client, null, ftp_files_tobe_delivered_array[2], permissions, protocol, newPermissionString);
-            }
-        }
-
-        if (!notificationFileExtension.isEmpty()) {
-            String tempFileName[] = ftp_files_tobe_delivered_array[2].split("\\.");
-            existingExtension = tempFileName[tempFileName.length - 1];
-            notificationFileName = ftp_files_tobe_delivered_array[2].replace(existingExtension, notificationFileExtension);
-            try {
-                try (InputStream inputStream = new FileInputStream(notificationSourceFile)) {
-                    ftp_client.storeFile(notificationFileName, inputStream);
+            if (!notificationFileExtension.isEmpty()) {
+                String tempFileName[] = ftp_files_tobe_delivered_array[2].split("\\.");
+                existingExtension = tempFileName[tempFileName.length - 1];
+                notificationFileName = ftp_files_tobe_delivered_array[2].replace(existingExtension, notificationFileExtension);
+                try {
+                    try (InputStream inputStream = new FileInputStream(notificationSourceFile)) {
+                        ftp_client.storeFile(notificationFileName, inputStream);
+                    }
+                } catch (Exception uploadEx) {
+                    ftp_delivery_status = "92";
+                    if (doesSFGFilExist(localDirectory + ftp_files_tobe_delivered_array[0])) {
+                        deleteTempDirs(localDirectory, ftp_files_tobe_delivered_array[0]);
+                    }
                 }
-            } catch (Exception uploadEx) {
-                ftp_delivery_status = "92";
-                deleteTempDirs(localDirectory, ftp_files_tobe_delivered_array[0]);
             }
+
+            ftp_route_metaData = ftp_files_tobe_delivered_array[4].split(",");
+            if (deliveryDetails.getDeliveryDetailsEntity().getAgeAnalysis().equalsIgnoreCase("Yes") && ftp_delivery_status.equalsIgnoreCase("33")) {
+                ftp_age_analysis_list.add("y;" + Integer.parseInt(ftp_files_tobe_delivered_array[0]) + ";" + ftp_files_tobe_delivered_array[6] + ";" + ftp_files_tobe_delivered_array[2] + ";" + ftp_files_tobe_delivered_array[2] + ";"
+                        + ftp_route_metaData[0] + ";" + ftp_route_metaData[2] + ";" + ftp_files_tobe_delivered_array[5] + ";" + ftp_files_tobe_delivered_array[3]
+                        + "," + ftp_files_tobe_delivered_array[4] + ";n;1;0;" + new Date().getTime() + ";33;FTP");
+
+            }
+
         }
-
-        String[] ftp_route_metaData = ftp_files_tobe_delivered_array[4].split(",");
-        if (deliveryDetails.getDeliveryDetailsEntity().getAgeAnalysis().equalsIgnoreCase("Yes") && ftp_delivery_status.equalsIgnoreCase("33")) {
-            ftp_age_analysis_list.add("y;" + Integer.parseInt(ftp_files_tobe_delivered_array[0]) + ";" + ftp_files_tobe_delivered_array[6] + ";" + ftp_files_tobe_delivered_array[2] + ";" + ftp_files_tobe_delivered_array[2] + ";"
-                    + ftp_route_metaData[0] + ";" + ftp_route_metaData[2] + ";" + ftp_files_tobe_delivered_array[5] + ";" + ftp_files_tobe_delivered_array[3]
-                    + "," + ftp_files_tobe_delivered_array[4] + ";n;1;0;" + new Date().getTime() + ";33;FTP");
-
-        }
-
         Date delivery_date = new Date(System.currentTimeMillis());
         if (ftp_delivery_status.equalsIgnoreCase("33")) {
             ftp_count_processed_files++;
@@ -384,7 +406,7 @@ public class DeliveryService implements IDeliveryService {
          * LETS MAKE THINGS WORK and BEAUTIFY LATER... YOU FREE TO DO IT BETTER
          *
          * */
-        if (deliveryDetails.getDeliveryDetailsEntity().getUseCompress().equalsIgnoreCase("yes")){
+        if (deliveryDetails.getDeliveryDetailsEntity().getUseCompress().equalsIgnoreCase("yes") && doesSFGFilExist(localDirectory + ftp_files_tobe_delivered_array[0])){
             directory_service.deleteNonEmptyDirectoryUsingStream(localDirectory + ftp_files_tobe_delivered_array[0]);
         }
 
@@ -402,7 +424,8 @@ public class DeliveryService implements IDeliveryService {
             }
         }
         return ftp_count_processed_files;
-    }
+        }
+
 
     //These Methods will be generic, am tired now, ...
     private int sftpDeliveryFileProcessing(ChannelSftp sftp_client, DeliveryDetailsDTO deliveryDetails, String fileName, String threadName, BufferedWriter buff_buff) throws IOException, SftpException {
@@ -417,6 +440,7 @@ public class DeliveryService implements IDeliveryService {
         String remoteHostName = deliveryDetails.getSftpProfDetailsEntity().getRemote_host();
         String changeDirector = deliveryDetails.getSftpProfDetailsEntity().getChangeDirectory();
         String remoteDirectory = getRemoteDirectory(changeDirector, protocol, ftpHostName, remoteHostName);
+        String consumer_code = deliveryDetails.getPendingDeliveriesEntity().getConsumerCode();
 
         String date_to_file_append = getDateFormat();
         changePermissionCheck = "yes".equalsIgnoreCase(deliveryDetails.getDeliveryDetailsEntity().getChangeFilePermissions());
@@ -428,8 +452,8 @@ public class DeliveryService implements IDeliveryService {
 
         if (!notify_ext.isEmpty()) {
             notificationFileExtension = notify_ext.substring(1, notify_ext.length());
-            del_service_log.info(LocalDateTime.now() + ": Thread.Name :-  " +threadName + " :-  ====> SFTP PROCESSING notificationFileExtension Value ..." + notificationFileExtension);
-            buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " +threadName + " :-  ====> SFTP PROCESSING notificationFileExtension Value ..." + notificationFileExtension);
+            del_service_log.info(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :-  ====> SFTP PROCESSING notificationFileExtension Value ..." + notificationFileExtension);
+            buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :-  ====> SFTP PROCESSING notificationFileExtension Value ..." + notificationFileExtension);
             buff_buff.newLine();
         }
 
@@ -440,158 +464,178 @@ public class DeliveryService implements IDeliveryService {
         String sftp_delivery_status = "33"; //Assume successful until set to failure
         int sftp_tmp_error_count = 0;
         String[] sftp_files_tobe_delivered_array = fileName.split(";");
-
+        String[] sftp_route_metaData = new String[6];
 
         String newPermissionString = deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString();
-        /*Very important info : --> PD_UID[0];FILENAME_ON_DISK[1];DESTINATION_FILENAME[2];DATA_FLOWID[3];ROUTE_METADATA[4];DELIVER_UID[5];COPY_OF_FILENAME_ON_FISK[6] */
-        for (String file_processing_options : getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff)) {
-            System.out.println(" >>>>>>>>>>>>>>>>>>>> SFTP file_processing_options = " + file_processing_options);
-            if (file_processing_options.equalsIgnoreCase("compress")) {
-                //Compress a file before delivering TODO: Herbie to check Compressed_file name
-                System.out.println(" >>>>>>>>>>>>>>>>>>>> About to invoke Compression ");
-                 String compressFileStr = compressService.compressFile(
-                         deliveryDetails.getDeliveryDetailsEntity(),
-                        notificationSourceFile,
-                        localDirectory,
-                        sftp_files_tobe_delivered_array[0],
-                        sftp_files_tobe_delivered_array[1],
-                        sftp_files_tobe_delivered_array[2],
-                        sftp_files_tobe_delivered_array[6],
-                        threadName,
-                        buff_buff);
+        if (!doesSFGFilExist(sftp_files_tobe_delivered_array[6])) {
 
-                     if (compressFileStr != null && compressFileStr.contains(";")) {
-                         String[] sftp_compressed_file_values = compressFileStr.split(";");
-                         sftp_files_tobe_delivered_array[2] = sftp_compressed_file_values[0];
-                         sftp_files_tobe_delivered_array[6] = sftp_compressed_file_values[1];
-                     }
+            System.out.println("Thread:" + threadName + new Date().toString() + ">>>> File Name: " + sftp_files_tobe_delivered_array[6] + "for SFTP Consumer_Code:-->"+consumer_code +" < DOES NOT EXIST IN FILE SYSTEM, Lets Continue to the Next Files.......");
+            buff_buff.write("Thread:" + threadName + new Date().toString() + " >>>> File Name: " + sftp_files_tobe_delivered_array[6] + "for SFTP Consumer_Code:-->"+consumer_code +" < DOES NOT EXIST IN FILE SYSTEM, Lets Continue to the Next Files......."); // + " ftp command " + listOfFilenames[i]);
+            buff_buff.newLine();
+            sftp_delivery_status = "92";
+            System.out.println(new Date().toString() + "Thread:" + threadName + " :- >>>>>>> Check UpdateStatus Value:- " + sftp_delivery_status);
 
+
+        } else {
+
+        Map<String, String> file_processing_options = getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff);
+        System.out.println(" >>>>>>>>>>>>>>>>>>>> SFTP file_processing_options = " + file_processing_options);
+        if ("compress".equalsIgnoreCase(file_processing_options.get("compress"))) {
+            //Compress a file before delivering TODO: Herbie to check Compressed_file name
+            System.out.println(" >>>>>>>>>>>>>>>>>>>> About to invoke Compression ");
+            String compressFileStr = compressService.compressFile(
+                    deliveryDetails.getDeliveryDetailsEntity(),
+                    notificationSourceFile,
+                    localDirectory,
+                    sftp_files_tobe_delivered_array[0],
+                    sftp_files_tobe_delivered_array[1],
+                    sftp_files_tobe_delivered_array[2],
+                    sftp_files_tobe_delivered_array[6],
+                    threadName,
+                    buff_buff);
+
+            if (compressFileStr != null && compressFileStr.contains(";")) {
+                String[] sftp_compressed_file_values = compressFileStr.split(";");
+                sftp_files_tobe_delivered_array[2] = sftp_compressed_file_values[0];
+                sftp_files_tobe_delivered_array[6] = sftp_compressed_file_values[1];
             }
 
-            if (file_processing_options.equalsIgnoreCase("uncompress")) {
-                //Uncompress a file before delivering
-                String[] sftp_uncompressed_file_values=  uncompressAFile(localDirectory,
-                        sftp_files_tobe_delivered_array[0],
-                        sftp_files_tobe_delivered_array[1],
-                        sftp_files_tobe_delivered_array[2],
-                        sftp_files_tobe_delivered_array[6],
-                        deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
-                        threadName,
-                        buff_buff).split(";");
-                sftp_files_tobe_delivered_array[2] = sftp_uncompressed_file_values[0];
-                sftp_files_tobe_delivered_array[6] = sftp_uncompressed_file_values[1];
-            }
-            if (file_processing_options.equalsIgnoreCase("rename")) {
-                String filePattern = deliveryDetails.getDeliveryDetailsEntity().getNewFileNamePattern();
-                sftp_files_tobe_delivered_array[2] =  renameAFile(sftp_files_tobe_delivered_array[2], filePattern);
-            }
-
-            if (file_processing_options.equalsIgnoreCase("remove")) {
-                //Remove characters
-                removeCharsFromAFile(sftp_files_tobe_delivered_array, localDirectory, deliveryDetails.getDeliveryDetailsEntity().getRemoveChars());
-            }
         }
 
+        if ("uncompress".equalsIgnoreCase(file_processing_options.get("uncompress"))) {
+            //Uncompress a file before delivering
+            String[] sftp_uncompressed_file_values = uncompressAFile(localDirectory,
+                    sftp_files_tobe_delivered_array[0],
+                    sftp_files_tobe_delivered_array[1],
+                    sftp_files_tobe_delivered_array[2],
+                    sftp_files_tobe_delivered_array[6],
+                    deliveryDetails.getDeliveryDetailsEntity().getUncompressType(),
+                    threadName,
+                    buff_buff).split(";");
+            sftp_files_tobe_delivered_array[2] = sftp_uncompressed_file_values[0];
+            sftp_files_tobe_delivered_array[6] = sftp_uncompressed_file_values[1];
+        }
+        /*if ("rename".equalsIgnoreCase(file_processing_options.get("rename"))) {
+            String filePattern = deliveryDetails.getDeliveryDetailsEntity().getNewFileNamePattern();
+            sftp_files_tobe_delivered_array[2] = renameAFile(sftp_files_tobe_delivered_array[2], filePattern);
+        }*/
+
+        if ("remove".equalsIgnoreCase(file_processing_options.get("remove"))) {
+            //Remove characters
+            removeCharsFromAFile(sftp_files_tobe_delivered_array, localDirectory, deliveryDetails.getDeliveryDetailsEntity().getRemoveChars());
+        }
+
+
         if (getRemoteAction(deliveryDetails.getDeliveryDetailsEntity().getDestFileAction()).equalsIgnoreCase("RENAME")) {
-            if(mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2])){
+            if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2])) {
                 sftp_client.rename(remoteDirectory + sftp_files_tobe_delivered_array[2], remoteDirectory + sftp_files_tobe_delivered_array[2] + date_to_file_append);
             }
         }
 
-        String deliver_with_temp_name = deliveryDetails.getDeliveryDetailsEntity().getUseTempName();
-        String permissions = getChmodDetails(deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString());
-        if (getDeliverWithTempName(deliver_with_temp_name).equalsIgnoreCase("yes")) {
-            try {
-                if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2])) {
-                    sftp_client.rm(remoteDirectory + sftp_files_tobe_delivered_array[2]);
+            String deliver_with_temp_name = deliveryDetails.getDeliveryDetailsEntity().getUseTempName();
+            String permissions = getChmodDetails(deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString());
+            if (getDeliverWithTempName(deliver_with_temp_name).equalsIgnoreCase("yes")) {
+                try {
+                    if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2])) {
+                        sftp_client.rm(remoteDirectory + sftp_files_tobe_delivered_array[2]);
+                    }
+                    sftp_client.put(sftp_files_tobe_delivered_array[6], remoteDirectory + sftp_files_tobe_delivered_array[0]);
+                } catch (SftpException fd) {
+                    del_service_log.error(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- SFTP PUT error occurred. This is fatal." + fd.getMessage() + ", For Consumer is : " + deliveryDetails.getConsumerCode());
+                    sftp_delivery_status = "92";
+                    if (sftp_tmp_error_count == 0) {
+                        sftp_error_count++;
+
+                        if (doesSFGFilExist(localDirectory + sftp_files_tobe_delivered_array[0])) {
+                            deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
+                        }
+
+                    }
                 }
-                sftp_client.put(sftp_files_tobe_delivered_array[6], remoteDirectory + sftp_files_tobe_delivered_array[0]);
-            } catch (SftpException fd) {
-                del_service_log.error(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- SFTP PUT error occurred. This is fatal." + fd.getMessage()+ ", For Consumer is : "+ deliveryDetails.getConsumerCode());
-                sftp_delivery_status = "92";
-                if(sftp_tmp_error_count == 0) {
-                    sftp_error_count++;
 
-                    deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
-                }
-            }
+                if (!permissions.isEmpty() && changePermissionCheck) {
 
-            if (!permissions.isEmpty() && changePermissionCheck) {
+                    boolean file_exist_value = mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[0]);
+                    if (file_exist_value) {
+                        consumerProtocolChangePermissions(null, sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[0], "", protocol, newPermissionString);
+                        if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[0])) {
+                            try {
+                                sftp_client.rename(remoteDirectory + sftp_files_tobe_delivered_array[0], remoteDirectory + sftp_files_tobe_delivered_array[2]);
 
-                boolean file_exist_value = mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory +sftp_files_tobe_delivered_array[0]);
-                if (file_exist_value){
-                    consumerProtocolChangePermissions(null, sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[0], "", protocol, newPermissionString);
-                    if(mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[0])) {
-                        try{
-                            sftp_client.rename(remoteDirectory + sftp_files_tobe_delivered_array[0], remoteDirectory + sftp_files_tobe_delivered_array[2]);
+                            } catch (SftpException re) {
+                                del_service_log.error(": Thread.Name :-  " + threadName + " :-SANGOMA !!! When Renaming SFTP delivery file After CHMOD :: Deliver with TempName From, " + sftp_files_tobe_delivered_array[0] + "  :TO: " + sftp_files_tobe_delivered_array[2] +
+                                        " :: Could not be Named " + re.getMessage() + ", Consumer is : " + deliveryDetails.getConsumerCode());
 
-                        } catch (SftpException re) {
-                            del_service_log.error(": Thread.Name :-  " + threadName + " :-SANGOMA !!! When Renaming SFTP delivery file After CHMOD :: Deliver with TempName From, " + sftp_files_tobe_delivered_array[0] + "  :TO: " + sftp_files_tobe_delivered_array[2] +
-                                    " :: Could not be Named " + re.getMessage()+ ", Consumer is : "+ deliveryDetails.getConsumerCode());
-
-                            sftp_delivery_status = "92";
-                            if(sftp_tmp_error_count == 0) {
-                                if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
-                                    deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
+                                sftp_delivery_status = "92";
+                                if (sftp_tmp_error_count == 0) {
+                                    if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
+                                        if (doesSFGFilExist(localDirectory + sftp_files_tobe_delivered_array[0])) {
+                                            deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-        } else {
+            } else {
 
-            try {
-                sftp_client.put(sftp_files_tobe_delivered_array[6], remoteDirectory + sftp_files_tobe_delivered_array[2]);
+                try {
+                    sftp_client.put(sftp_files_tobe_delivered_array[6], remoteDirectory + sftp_files_tobe_delivered_array[2]);
 
-            } catch (SftpException sftpPutEx) {
-                del_service_log.error(": Thread.Name :-  " + threadName + " :- SFTP Put with final name returned error. ... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() +" :: ROUTE_SHORT_NAME:- "+ deliveryDetails.getRouteShortName()+ ", " + sftpPutEx.getMessage());
-                sftp_delivery_status = "92";
-                if(sftp_tmp_error_count == 0) {
-                    if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
-                        deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
+                } catch (SftpException sftpPutEx) {
+                    del_service_log.error(": Thread.Name :-  " + threadName + " :- SFTP Put with final name returned error. ... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() + " :: ROUTE_SHORT_NAME:- " + deliveryDetails.getRouteShortName() + ", " + sftpPutEx.getMessage());
+                    sftp_delivery_status = "92";
+                    if (sftp_tmp_error_count == 0) {
+                        if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
+                            if (doesSFGFilExist(localDirectory + sftp_files_tobe_delivered_array[0])) {
+                                deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
+                            }
+                        }
+                    }
+                }
+
+                if (!permissions.equals("") && changePermissionCheck) {
+                    if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2])) {
+                        consumerProtocolChangePermissions(null, sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2], "", protocol, newPermissionString);
                     }
                 }
             }
 
-            if (!permissions.equals("") && changePermissionCheck) {
-                if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2])){
-                    consumerProtocolChangePermissions(null, sftp_client, remoteDirectory + sftp_files_tobe_delivered_array[2], "", protocol, newPermissionString);
+            if (!notificationFileExtension.isEmpty()) {
+                String tempFileName[] = sftp_files_tobe_delivered_array[2].split("\\.");
+                existingExtension = tempFileName[tempFileName.length - 1];
+                notificationFileName = sftp_files_tobe_delivered_array[2].replace(existingExtension, notificationFileExtension);
+
+                try {
+                    sftp_client.put(notificationSourceFile, remoteDirectory + notificationFileName);
+                } catch (SftpException sftpPutEx) {
+                    del_service_log.error(new Date().toString() + ": Thread.Name :-  " + threadName + " :- SFTP notification file PUT returned error... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() + " :: ROUTE_SHORT_NAME:- " + deliveryDetails.getRouteShortName() + ", " + sftpPutEx.getMessage());
+                    sftp_delivery_status = "92";
+                    if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
+                        if (doesSFGFilExist(localDirectory + sftp_files_tobe_delivered_array[0])) {
+                            deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
+                        }
+                    }
+                }
+
+                if (changePermissionCheck) {
+                    if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + notificationFileName)) {
+                        consumerProtocolChangePermissions(null, sftp_client, remoteHostName + notificationFileName, "", protocol, newPermissionString);
+                    }
                 }
             }
-        }
 
-        if (!notificationFileExtension.isEmpty()) {
-            String tempFileName[] = sftp_files_tobe_delivered_array[2].split("\\.");
-            existingExtension = tempFileName[tempFileName.length - 1];
-            notificationFileName = sftp_files_tobe_delivered_array[2].replace(existingExtension, notificationFileExtension);
+            //TODO :- Updated Delivered Table for Successfull delivered files
+            sftp_route_metaData = sftp_files_tobe_delivered_array[4].split(",");
 
-            try {
-                sftp_client.put(notificationSourceFile, remoteDirectory + notificationFileName);
-            } catch (SftpException sftpPutEx) {
-                del_service_log.error(new Date().toString() + ": Thread.Name :-  " + threadName + " :- SFTP notification file PUT returned error... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() +" :: ROUTE_SHORT_NAME:- "+ deliveryDetails.getRouteShortName()+ ", " + sftpPutEx.getMessage());
-                sftp_delivery_status = "92";
-                if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
-                    deleteTempDirs(localDirectory, sftp_files_tobe_delivered_array[0]);
-                }
+            if (deliveryDetails.getDeliveryDetailsEntity().getAgeAnalysis().equalsIgnoreCase("Yes") && sftp_delivery_status.equalsIgnoreCase("33")) {
+                sftp_age_analysis_list.add("y;" + Integer.parseInt(sftp_files_tobe_delivered_array[0]) + ";" + sftp_files_tobe_delivered_array[6] + ";" + sftp_files_tobe_delivered_array[2] + ";" + sftp_files_tobe_delivered_array[2] + ";"
+                        + sftp_route_metaData[0] + ";" + sftp_route_metaData[2] + ";" + sftp_files_tobe_delivered_array[5] + ";" + sftp_files_tobe_delivered_array[3]
+                        + "," + sftp_files_tobe_delivered_array[4] + ";n;1;0;" + new Date().getTime() + ";33;FTP");
+
             }
-
-            if (changePermissionCheck) {
-                if (mftValidationService.checkSftpFileExists(sftp_client, remoteDirectory + notificationFileName)){
-                    consumerProtocolChangePermissions(null, sftp_client, remoteHostName + notificationFileName, "", protocol, newPermissionString);
-                }
-            }
-        }
-
-        //TODO :- Updated Delivered Table for Successfull delivered files
-        String[] sftp_route_metaData = sftp_files_tobe_delivered_array[4].split(",");
-
-        if (deliveryDetails.getDeliveryDetailsEntity().getAgeAnalysis().equalsIgnoreCase("Yes") && sftp_delivery_status.equalsIgnoreCase("33")) {
-            sftp_age_analysis_list.add("y;" + Integer.parseInt(sftp_files_tobe_delivered_array[0]) + ";" + sftp_files_tobe_delivered_array[6] + ";" + sftp_files_tobe_delivered_array[2] + ";" + sftp_files_tobe_delivered_array[2] + ";"
-                    + sftp_route_metaData[0] + ";" + sftp_route_metaData[2] + ";" + sftp_files_tobe_delivered_array[5] + ";" + sftp_files_tobe_delivered_array[3]
-                    + "," + sftp_files_tobe_delivered_array[4] + ";n;1;0;" + new Date().getTime() + ";33;FTP");
-
         }
 
         Date delivery_date = new Date(System.currentTimeMillis());
@@ -610,7 +654,7 @@ public class DeliveryService implements IDeliveryService {
          * LETS MAKE THINGS WORK and BEAUTIFY LATER... YOU FREE TO DO IT BETTER
          *
          * */
-        if (deliveryDetails.getDeliveryDetailsEntity().getUseCompress().equalsIgnoreCase("yes")){
+        if (deliveryDetails.getDeliveryDetailsEntity().getUseCompress().equalsIgnoreCase("yes") && doesSFGFilExist(localDirectory+ sftp_files_tobe_delivered_array[0])){
             directory_service.deleteNonEmptyDirectoryUsingStream(localDirectory+ sftp_files_tobe_delivered_array[0]);
         }
 
@@ -660,10 +704,23 @@ public class DeliveryService implements IDeliveryService {
         String changeDirector = deliveryDetails.getPendingDeliveriesEntity().getConsumerRemoteDir();
         String remoteDirectory = getRemoteDirectory(changeDirector, protocol, "", "");
         String newPermissionString =  deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString();
+       String consumer_code = deliveryDetails.getPendingDeliveriesEntity().getConsumerCode();
+        String[] oscopy_route_metaData = new String[6];
 
-        for (String file_processing_options : getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff)) {
+        if (!doesSFGFilExist(oscopy_files_tobe_delivered_array[6])) {
 
-            if (file_processing_options.equalsIgnoreCase("compress")) {
+            System.out.println("Thread:" + threadName + new Date().toString() + ">>>> File Name: " + oscopy_files_tobe_delivered_array[6] + "for Oscopy  Consumer_Code:-->"+consumer_code +" < DOES NOT EXIST IN FILE SYSTEM, Lets Continue to the Next Files.......");
+            buff_buff.write("Thread:" + threadName + new Date().toString() + " >>>> File Name: " + oscopy_files_tobe_delivered_array[6] + "for Oscopy  Consumer_Code:-->"+consumer_code +" < DOES NOT EXIST IN FILE SYSTEM, Lets Continue to the Next Files......."); // + " ftp command " + listOfFilenames[i]);
+            buff_buff.newLine();
+            os_copy_delivery_status = "92";
+            System.out.println(new Date().toString() + "Thread:" + threadName + " :- >>>>>>> Check UpdateStatus Value:- " + os_copy_delivery_status);
+
+
+        } else {
+
+            // for (String file_processing_options : getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff)) {
+            Map<String, String> file_processing_options = getFileProcessingOptions(deliveryDetails.getDeliveryDetailsEntity(), threadName, buff_buff);
+            if ("compress".equalsIgnoreCase(file_processing_options.get("compress"))) {
                 String[] oscopy_compressed_file_values = compressService.compressFile(deliveryDetails.getDeliveryDetailsEntity(),
                         notificationSourceFile,
                         localDirectory,
@@ -677,8 +734,8 @@ public class DeliveryService implements IDeliveryService {
                 oscopy_files_tobe_delivered_array[6] = oscopy_compressed_file_values[1];
             }
 
-            if (file_processing_options.equalsIgnoreCase("uncompress")) {
-                String[] oscopy_uncompressed_file_values=  uncompressAFile(localDirectory,
+            if ("uncompress".equalsIgnoreCase(file_processing_options.get("uncompress"))) {
+                String[] oscopy_uncompressed_file_values = uncompressAFile(localDirectory,
                         oscopy_files_tobe_delivered_array[0],
                         oscopy_files_tobe_delivered_array[1],
                         oscopy_files_tobe_delivered_array[2],
@@ -690,99 +747,108 @@ public class DeliveryService implements IDeliveryService {
                 oscopy_files_tobe_delivered_array[2] = oscopy_uncompressed_file_values[0];
                 oscopy_files_tobe_delivered_array[6] = oscopy_uncompressed_file_values[1];
             }
-            if (file_processing_options.equalsIgnoreCase("rename")) {
+            if ("rename".equalsIgnoreCase(file_processing_options.get("rename"))) {
                 //Rename a file before delivering
                 renameAFile(oscopy_files_tobe_delivered_array[2], deliveryDetails.getDeliveryDetailsEntity().getNewFileNamePattern());
             }
-            if (file_processing_options.equalsIgnoreCase("remove")) {
+            if ("remove".equalsIgnoreCase(file_processing_options.get("remove"))) {
                 //Remove characters
                 removeCharsFromAFile(oscopy_files_tobe_delivered_array, localDirectory, deliveryDetails.getDeliveryDetailsEntity().getRemoveChars());
             }
-        }
 
-        if (getRemoteAction(deliveryDetails.getDeliveryDetailsEntity().getDestFileAction()).equalsIgnoreCase("RENAME")) {
 
-            Path source_file = Paths.get(remoteDirectory + oscopy_files_tobe_delivered_array[2]);
-            if (Files.exists(source_file)) {
-                osCopyService.copyToOS(remoteDirectory + oscopy_files_tobe_delivered_array[2], remoteDirectory + oscopy_files_tobe_delivered_array[2] + date_to_file_append);
-            }
-        }
+                if (getRemoteAction(deliveryDetails.getDeliveryDetailsEntity().getDestFileAction()).equalsIgnoreCase("RENAME")) {
 
-        String deliver_with_temp_name = deliveryDetails.getDeliveryDetailsEntity().getUseTempName();
-        String permissions = getChmodDetails(deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString());
-
-        if (getDeliverWithTempName(deliver_with_temp_name).equalsIgnoreCase("yes")) {
-
-            Path source_file = Paths.get(remoteDirectory + oscopy_files_tobe_delivered_array[2]);
-            if (Files.exists(source_file)) Files.delete(source_file);
-
-            try {
-                osCopyService.copyToOS(oscopy_files_tobe_delivered_array[6], remoteDirectory + oscopy_files_tobe_delivered_array[0]);
-            } catch (IOException e) {
-                del_service_log.info( " : Thread.Name :-  " + threadName + " :- Error Rate Calculation Value :- " );
-                buff_buff.write(LocalDateTime.now() + " : Thread.Name :-  " + threadName + " :- Error Rate Calculation Value :- ");
-                buff_buff.newLine();
-                if(oscopy_tmp_error_count == 0) {
-                    os_copy_delivery_status = "92";
-                    deleteTempDirs(localDirectory, oscopy_files_tobe_delivered_array[0]);
-                }
-            }
-
-            //check for permissions
-            if (!permissions.equals("") && changePermissionCheck) {
-                consumerProtocolChangePermissions(null, null, remoteDirectory + oscopy_files_tobe_delivered_array[0], permissions, protocol, newPermissionString);
-            }
-
-            //Renaming back the file to Original FileName
-            boolean osCopyFileRenamed = osCopyService.renameOsCopyTempFile(remoteDirectory + oscopy_files_tobe_delivered_array[0], remoteDirectory + oscopy_files_tobe_delivered_array[2]);
-            buff_buff.write(":: => " + LocalDateTime.now() + " : Thread.Name :-  " + threadName + " :- OSCOPY Renaming from:-  " + oscopy_files_tobe_delivered_array[0] + " to " + oscopy_files_tobe_delivered_array[2] + osCopyFileRenamed);
-            buff_buff.newLine();
-
-        } else {
-            try {
-                osCopyService.copyToOS(oscopy_files_tobe_delivered_array[6], remoteDirectory + oscopy_files_tobe_delivered_array[2]);
-                if (!permissions.equals("") && changePermissionCheck) {
-                    consumerProtocolChangePermissions(null, null, changeDirector + oscopy_files_tobe_delivered_array[2], permissions, protocol, newPermissionString);
-                }
-
-            } catch (IOException e) {
-                if(oscopy_tmp_error_count == 0) {
-                    if (Math.round((double) (oscopy_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
-                        oscopy_error_count++;
-                        deleteTempDirs(localDirectory, oscopy_files_tobe_delivered_array[0]);
+                    Path source_file = Paths.get(remoteDirectory + oscopy_files_tobe_delivered_array[2]);
+                    if (Files.exists(source_file)) {
+                        osCopyService.copyToOS(remoteDirectory + oscopy_files_tobe_delivered_array[2], remoteDirectory + oscopy_files_tobe_delivered_array[2] + date_to_file_append);
                     }
                 }
-            }
-        }
 
-        if (!notificationFileExtension.isEmpty()) {
-            String tempFileName[] = oscopy_files_tobe_delivered_array[2].split("\\.");
-            existingExtension = tempFileName[tempFileName.length - 1];
-            notificationFileName = oscopy_files_tobe_delivered_array[2].replace(existingExtension, notificationFileExtension);
+                String deliver_with_temp_name = deliveryDetails.getDeliveryDetailsEntity().getUseTempName();
+                String permissions = getChmodDetails(deliveryDetails.getDeliveryDetailsEntity().getNewPermissionString());
 
-            try {
-                osCopyService.copyToOS(notificationSourceFile, remoteDirectory + notificationFileName);
-                if (!permissions.equals("") && changePermissionCheck) {
-                    consumerProtocolChangePermissions(null, null, remoteDirectory + notificationFileName, permissions, protocol, newPermissionString);
-                }
+                if (getDeliverWithTempName(deliver_with_temp_name).equalsIgnoreCase("yes")) {
 
-            } catch (IOException not) {
-                os_copy_delivery_status = "92";
-                if(oscopy_tmp_error_count == 0) {
-                    if (Math.round((double) (oscopy_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
-                        oscopy_error_count++;
-                        deleteTempDirs(localDirectory, oscopy_files_tobe_delivered_array[0]);
+                    Path source_file = Paths.get(remoteDirectory + oscopy_files_tobe_delivered_array[2]);
+                    if (Files.exists(source_file)) Files.delete(source_file);
+
+                    try {
+                        osCopyService.copyToOS(oscopy_files_tobe_delivered_array[6], remoteDirectory + oscopy_files_tobe_delivered_array[0]);
+                    } catch (IOException e) {
+                        del_service_log.info(" : Thread.Name :-  " + threadName + " :- Error Rate Calculation Value :- ");
+                        buff_buff.write(LocalDateTime.now() + " : Thread.Name :-  " + threadName + " :- Error Rate Calculation Value :- ");
+                        buff_buff.newLine();
+                        if (oscopy_tmp_error_count == 0) {
+                            os_copy_delivery_status = "92";
+                            if (doesSFGFilExist(localDirectory + oscopy_files_tobe_delivered_array[0])) {
+                                if (doesSFGFilExist(localDirectory + oscopy_files_tobe_delivered_array[0])) {
+                                    deleteTempDirs(localDirectory, oscopy_files_tobe_delivered_array[0]);
+                                }
+                            }
+                        }
+                    }
+
+                    //check for permissions
+                    if (!permissions.equals("") && changePermissionCheck) {
+                        consumerProtocolChangePermissions(null, null, remoteDirectory + oscopy_files_tobe_delivered_array[0], permissions, protocol, newPermissionString);
+                    }
+
+                    //Renaming back the file to Original FileName
+                    boolean osCopyFileRenamed = osCopyService.renameOsCopyTempFile(remoteDirectory + oscopy_files_tobe_delivered_array[0], remoteDirectory + oscopy_files_tobe_delivered_array[2]);
+                    buff_buff.write(":: => " + LocalDateTime.now() + " : Thread.Name :-  " + threadName + " :- OSCOPY Renaming from:-  " + oscopy_files_tobe_delivered_array[0] + " to " + oscopy_files_tobe_delivered_array[2] + osCopyFileRenamed);
+                    buff_buff.newLine();
+
+                } else {
+                    try {
+                        osCopyService.copyToOS(oscopy_files_tobe_delivered_array[6], remoteDirectory + oscopy_files_tobe_delivered_array[2]);
+                        if (!permissions.equals("") && changePermissionCheck) {
+                            consumerProtocolChangePermissions(null, null, changeDirector + oscopy_files_tobe_delivered_array[2], permissions, protocol, newPermissionString);
+                        }
+
+                    } catch (IOException e) {
+                        if (oscopy_tmp_error_count == 0) {
+                            if (Math.round((double) (oscopy_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
+                                oscopy_error_count++;
+                                if (doesSFGFilExist(localDirectory + oscopy_files_tobe_delivered_array[0])) {
+                                    deleteTempDirs(localDirectory, oscopy_files_tobe_delivered_array[0]);
+                                }
+                            }
+                        }
                     }
                 }
+
+                if (!notificationFileExtension.isEmpty()) {
+                    String tempFileName[] = oscopy_files_tobe_delivered_array[2].split("\\.");
+                    existingExtension = tempFileName[tempFileName.length - 1];
+                    notificationFileName = oscopy_files_tobe_delivered_array[2].replace(existingExtension, notificationFileExtension);
+
+                    try {
+                        osCopyService.copyToOS(notificationSourceFile, remoteDirectory + notificationFileName);
+                        if (!permissions.equals("") && changePermissionCheck) {
+                            consumerProtocolChangePermissions(null, null, remoteDirectory + notificationFileName, permissions, protocol, newPermissionString);
+                        }
+
+                    } catch (IOException not) {
+                        os_copy_delivery_status = "92";
+                        if (oscopy_tmp_error_count == 0) {
+                            if (Math.round((double) (oscopy_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
+                                oscopy_error_count++;
+                                if (doesSFGFilExist(localDirectory + oscopy_files_tobe_delivered_array[0])) {
+                                    deleteTempDirs(localDirectory, oscopy_files_tobe_delivered_array[0]);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                oscopy_route_metaData = oscopy_files_tobe_delivered_array[4].split(",");
+                if (deliveryDetails.getDeliveryDetailsEntity().getAgeAnalysis().equalsIgnoreCase("Yes") && os_copy_delivery_status.equalsIgnoreCase("33")) {
+                    oscopy_age_analysis_list.add("y;" + Integer.parseInt(oscopy_files_tobe_delivered_array[0]) + ";" + oscopy_files_tobe_delivered_array[6] + ";" + oscopy_files_tobe_delivered_array[2] + ";" + oscopy_files_tobe_delivered_array[2] + ";"
+                            + oscopy_route_metaData[0] + ";" + oscopy_route_metaData[2] + ";" + oscopy_files_tobe_delivered_array[5] + ";" + oscopy_files_tobe_delivered_array[3]
+                            + "," + oscopy_files_tobe_delivered_array[4] + ";n;1;0;" + new Date().getTime() + ";33;FTP");
+
             }
-        }
-
-        String[] oscopy_route_metaData = oscopy_files_tobe_delivered_array[4].split(",");
-        if (deliveryDetails.getDeliveryDetailsEntity().getAgeAnalysis().equalsIgnoreCase("Yes") && os_copy_delivery_status.equalsIgnoreCase("33")) {
-            oscopy_age_analysis_list.add("y;" + Integer.parseInt(oscopy_files_tobe_delivered_array[0]) + ";" + oscopy_files_tobe_delivered_array[6] + ";" + oscopy_files_tobe_delivered_array[2] + ";" + oscopy_files_tobe_delivered_array[2] + ";"
-                    + oscopy_route_metaData[0] + ";" + oscopy_route_metaData[2] + ";" + oscopy_files_tobe_delivered_array[5] + ";" + oscopy_files_tobe_delivered_array[3]
-                    + "," + oscopy_files_tobe_delivered_array[4] + ";n;1;0;" + new Date().getTime() + ";33;FTP");
-
         }
 
         Date delivery_date = new Date(System.currentTimeMillis());
@@ -797,7 +863,7 @@ public class DeliveryService implements IDeliveryService {
             updateFailedDeliveredFileTsStatusAndKeyByUid(oscopy_route_metaData[2], Integer.parseInt(oscopy_files_tobe_delivered_array[5]));
         }
 
-        if (deliveryDetails.getDeliveryDetailsEntity().getUseCompress().equalsIgnoreCase("yes")){
+        if (deliveryDetails.getDeliveryDetailsEntity().getUseCompress().equalsIgnoreCase("yes") && doesSFGFilExist(localDirectory + oscopy_files_tobe_delivered_array[0])){
             directory_service.deleteNonEmptyDirectoryUsingStream(localDirectory + oscopy_files_tobe_delivered_array[0]);
         }
 
@@ -815,13 +881,14 @@ public class DeliveryService implements IDeliveryService {
     }
 
 
-    private List<String> getFileProcessingOptions(DeliveryDetailsEntity deliveryDetails, String threadName, BufferedWriter bw)throws IOException {
+    private Map<String, String> getFileProcessingOptions(DeliveryDetailsEntity deliveryDetails, String threadName, BufferedWriter bw)throws IOException {
 
-        List<String> deliver_process_option = new ArrayList();
+        Map<String, String> deliver_process_option = new HashMap<>();
+        /*List<String> deliver_process_option = new ArrayList();
         deliver_process_option.add("");
         deliver_process_option.add("");
         deliver_process_option.add("");
-        deliver_process_option.add("");
+        deliver_process_option.add("");*/
 
         //Compress files
         bw.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- About to call Delivery Process Options. Option is :- "+ deliveryDetails.getUseCompress());
@@ -829,7 +896,8 @@ public class DeliveryService implements IDeliveryService {
 
         if (getUseCompress(deliveryDetails.getUseCompress()).equalsIgnoreCase("yes")) { //gzip, zip, tar supported for now
             String compression_position = getCompressPosition(deliveryDetails.getCompressPosition());
-            deliver_process_option.set(Integer.parseInt(compression_position) - 1, "compress");
+            //deliver_process_option.set(Integer.parseInt(compression_position) - 1, "compress");
+            deliver_process_option.put("compress", "compress");
         }
         //Uncompress files
         if (getUseUncompress(deliveryDetails.getUseUncompress()).equalsIgnoreCase("yes")) { //gzip, zip, tar supported for now
@@ -837,21 +905,24 @@ public class DeliveryService implements IDeliveryService {
             bw.newLine();
             String uncompress_pos = getUncompressPosition(deliveryDetails.getUncompressPosition());
 
-            deliver_process_option.set(Integer.parseInt(uncompress_pos) - 1, "uncompress");
+            //eliver_process_option.set(Integer.parseInt(uncompress_pos) - 1, "uncompress");
+            deliver_process_option.put("uncompress", "uncompress");
         }
         //Rename files
         if (getChangeFileNameCase(deliveryDetails.getChangeFilenameCase()).equalsIgnoreCase("yes")) {
             bw.write(LocalDateTime.now() +  ": Thread.Name :-  " + threadName + " :- Change File Name Delivery Process Options Invoked...");
             bw.newLine();
             String rename_pos = getRenamePosition(deliveryDetails.getRenamePosition());
-            deliver_process_option.set(Integer.parseInt(rename_pos) - 1, "rename");
+            //deliver_process_option.set(Integer.parseInt(rename_pos) - 1, "rename");
+            deliver_process_option.put("rename", "rename");
         }
         //Remove characters
         if (getRemoveChars(deliveryDetails.getRemoveChars()).equalsIgnoreCase("yes")) {
             bw.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- Remove Chars Delivery Process Options Invoked...");
             bw.newLine();
             String remove_chars = getRemoveCharsPosition(deliveryDetails.getRemovePosition());
-            deliver_process_option.set(Integer.parseInt(remove_chars) - 1, "remove");
+            //deliver_process_option.set(Integer.parseInt(remove_chars) - 1, "remove");
+            deliver_process_option.put("remove", "remove");
         }
         return deliver_process_option;
     }
@@ -1237,5 +1308,12 @@ public class DeliveryService implements IDeliveryService {
         }
         return final_uncompressed_file;
     }
+     private boolean doesSFGFilExist(String sfg_fs_file){
+
+         del_service_log.info("About to check if SFG File exists in the FileSystem : - > " + sfg_fs_file);
+        boolean sfg_file_fs =  new File(sfg_fs_file).exists();
+
+        return sfg_file_fs;
+     }
 
 }
