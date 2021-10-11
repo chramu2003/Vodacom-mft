@@ -4,11 +4,11 @@ package za.co.vodacom.vodacommft.service.impl;
  * @package za.co.vodacom.vodacomMFT.service.impl
  */
 
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import za.co.vodacom.vodacommft.config.PropertiesFileSysConfig;
 import za.co.vodacom.vodacommft.service.IDirectoryService;
@@ -20,24 +20,16 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FileDeliveryService implements IFileDeliveryService {
     private static final Logger logger = LoggerFactory.getLogger(FileDeliveryService.class);
 
-    private ThreadPoolExecutor threadPoolExecutorTen = null;
-
-    @Autowired
-    private PropertiesFileSysConfig systemCfgProperties;
-
-    @Autowired
-    private IDirectoryService directory_service;
-
-    @Autowired
-    private IThreadTuningService threadTuningService;
-
-    @Autowired
-    private ILockService lockService;
+    private final PropertiesFileSysConfig systemCfgProperties;
+    private  final IDirectoryService directory_service;
+    private final ILockService lockService;
 
 
     @Override
@@ -50,7 +42,20 @@ public class FileDeliveryService implements IFileDeliveryService {
             directory_service.createDeliveryWorkingDirectories(workDirectory);
 
             if (pendingDeliveryList != null && pendingDeliveryList.size() > 0) {
-                doDeliveryWithTenThreads(pendingDeliveryList, workDirectory, localDirectory);
+                for (String[] pendingDelivery : pendingDeliveryList) {
+                    String consumerCode = pendingDelivery[0];
+                    String routeShortName = pendingDelivery[1];
+                    try {
+                        if (lockService.addLock(consumerCode)) {
+                            IThreadTuningService threadTuningService = new ThreadTuningService();
+                            threadTuningService.doFileProcessing(consumerCode, routeShortName, workDirectory, localDirectory);
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to process Consumer Code & Route Short Name [{}/{}/{}] with the following error message", consumerCode, routeShortName, e);
+                    } finally {
+                        lockService.releaseLock(consumerCode);
+                    }
+                }
             }
 
         } catch (Exception e) {
@@ -58,7 +63,7 @@ public class FileDeliveryService implements IFileDeliveryService {
         }
     }
 
-    private void doDeliveryWithTenThreads(List<String[]> pendingDeliveryList, String workDirectory, String localDirectory) {
+    /*private void doDeliveryWithTenThreads(List<String[]> pendingDeliveryList, String workDirectory, String localDirectory) {
         try {
             if (threadPoolExecutorTen == null || threadPoolExecutorTen.isShutdown()) threadPoolExecutorTen = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
             CountDownLatch latch = new CountDownLatch(pendingDeliveryList.size());
@@ -68,7 +73,7 @@ public class FileDeliveryService implements IFileDeliveryService {
                     String routeShortName = pendingDelivery[1];
                     try {
                         if (lockService.addLock(consumerCode)) {
-                            threadTuningService.doFileProcessingWithThreads(consumerCode, routeShortName, workDirectory, localDirectory);
+                            threadTuningService.doFileProcessing(consumerCode, routeShortName, workDirectory, localDirectory);
                         }
                     } catch (Exception e) {
                         log.error("Failed to process Consumer Code & Route Short Name [{}/{}/{}] with the following error message", consumerCode, routeShortName, e);
@@ -84,5 +89,5 @@ public class FileDeliveryService implements IFileDeliveryService {
         } finally {
             if(!threadPoolExecutorTen.isShutdown())threadPoolExecutorTen.shutdown();
         }
-    }
+    }*/
 }

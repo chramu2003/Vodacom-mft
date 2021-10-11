@@ -6,10 +6,9 @@ package za.co.vodacom.vodacommft.service.impl;
 
 import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.SftpException;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPSClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import za.co.vodacom.vodacommft.config.PropertiesFileSysConfig;
@@ -31,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
+@Slf4j
 public class DeliveryService implements IDeliveryService {
 
     private boolean changePermissionCheck = false;
@@ -76,9 +76,6 @@ public class DeliveryService implements IDeliveryService {
 
     @Autowired
     private DeliveredFileEntityRepository delivered_file_entity_repo;
-
-
-    private static final Logger del_service_log = LoggerFactory.getLogger(DeliveryService.class);
 
 
     @Override
@@ -141,7 +138,7 @@ public class DeliveryService implements IDeliveryService {
                         }
 
                     } catch (Exception ftp_ex) {
-                        del_service_log.error("Thread.Name :-  " + threadName + " :- SANGOMA ON FTP PROTOCOL !!! Error, something wrong happened.....\n" + ftp_ex.getMessage());
+                        log.error("Thread.Name :-  " + threadName + " :- SANGOMA ON FTP PROTOCOL !!! Error, something wrong happened.....\n" + ftp_ex.getMessage());
                         buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- SANGOMA ON FTP PROTOCOL !!! Error, something wrong happened.....\n" + ftp_ex.getMessage());
                         buff_buff.newLine();
                     } finally {
@@ -156,7 +153,7 @@ public class DeliveryService implements IDeliveryService {
                 case "SFTP": {
                     ChannelSftp sftpClient = null;
                     try {
-                        del_service_log.info("Thread.Name :-  " + threadName + " :Get SFTP Connection Details For Consumer:- " + deliveryDetails.getConsumerCode());
+                        log.info("Thread.Name :-  " + threadName + " :Get SFTP Connection Details For Consumer:- " + deliveryDetails.getConsumerCode());
                         buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :Get SFTP Connection Details For Consumer:- " + deliveryDetails.getConsumerCode());
                         buff_buff.newLine();
                         System.out.println("===================> deliveryDetails.getConsumerCode() = " + deliveryDetails.getConsumerCode());
@@ -190,7 +187,7 @@ public class DeliveryService implements IDeliveryService {
                         }
 
                     } catch (Exception sftp_ex) {
-                        del_service_log.error( threadName + " : SANGOMA IN SFTP PROTOCOL !!! Error , Something wrong happened. Consumer is : " +  sftp_ex.getMessage());
+                        log.error( threadName + " : SANGOMA IN SFTP PROTOCOL !!! Error , Something wrong happened. Consumer is : " +  sftp_ex.getMessage());
                         buff_buff.write(LocalDateTime.now() + ": " + threadName + " : SANGOMA IN SFTP PROTOCOL !!! Error , Something wrong happened. Consumer is : " + deliveryDetails.getConsumerCode() + ",  " + sftp_ex.getMessage());
                         buff_buff.newLine();
                         sftp_ex.printStackTrace();
@@ -204,7 +201,7 @@ public class DeliveryService implements IDeliveryService {
                 }
 
                 case "OSCOPY":
-                    del_service_log.info( ": Thread.Name :-  " + threadName + " :CONSUMER_PROTOCOL ");
+                    log.info( ": Thread.Name :-  " + threadName + " :CONSUMER_PROTOCOL ");
                     buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :CONSUMER_PROTOCOL ");
                     buff_buff.newLine();
 
@@ -332,7 +329,7 @@ public class DeliveryService implements IDeliveryService {
                     ftp_client.storeFile(ftp_files_tobe_delivered_array[0], file_in_stream);
 
                 } catch (IOException fd) {
-                    del_service_log.error(": Thread.Name :-  " + threadName + " :- FTP PUT error occurred. This is fatal. " + fd.getMessage() + ", Consumer is : " + deliveryDetails.getConsumerCode());
+                    log.error(": Thread.Name :-  " + threadName + " :- FTP PUT error occurred. This is fatal. " + fd.getMessage() + ", Consumer is : " + deliveryDetails.getConsumerCode());
                     buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- FTP PUT error occurred. This is fatal. " + fd.getMessage() + ", Consumer is : " + deliveryDetails.getConsumerCode());
                     buff_buff.newLine();
                     ftp_delivery_status = "92";
@@ -357,7 +354,7 @@ public class DeliveryService implements IDeliveryService {
                     if (doesSFGFilExist(localDirectory + ftp_files_tobe_delivered_array[0])) {
                         deleteTempDirs(localDirectory, ftp_files_tobe_delivered_array[0]);
                     }
-                    del_service_log.error(new Date().toString() + ": Thread.Name :-  " + threadName + " :-  FTP PUT Error occurred On FTP DeliverWithoutTemName!!!. This is fatal. " + ftp_clt.getMessage());
+                    log.error(new Date().toString() + ": Thread.Name :-  " + threadName + " :-  FTP PUT Error occurred On FTP DeliverWithoutTemName!!!. This is fatal. " + ftp_clt.getMessage());
                 }
                 if (!permissions.isEmpty() && changePermissionCheck) {
                     consumerProtocolChangePermissions(ftp_client, null, ftp_files_tobe_delivered_array[2], permissions, protocol, newPermissionString);
@@ -412,7 +409,7 @@ public class DeliveryService implements IDeliveryService {
 
         if(Math.round((double)ftp_error_count / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) {
             if(autoSuspendDelivery(deliveryDetails.getConsumerCode(), deliveryDetails.getRouteShortName())){
-                del_service_log.info(new Date().toString() + ": Thread.Name :-  " + threadName + " :- Delivery auto-suspended successfully.");
+                log.info(new Date().toString() + ": Thread.Name :-  " + threadName + " :- Delivery auto-suspended successfully.");
                 buff_buff.write(new Date().toString() + ": Thread.Name :-  " + threadName + " :- Delivery auto-suspended successfully.");
                 buff_buff.newLine();
             }
@@ -452,7 +449,7 @@ public class DeliveryService implements IDeliveryService {
 
         if (!notify_ext.isEmpty()) {
             notificationFileExtension = notify_ext.substring(1, notify_ext.length());
-            del_service_log.info(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :-  ====> SFTP PROCESSING notificationFileExtension Value ..." + notificationFileExtension);
+            log.info(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :-  ====> SFTP PROCESSING notificationFileExtension Value ..." + notificationFileExtension);
             buff_buff.write(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :-  ====> SFTP PROCESSING notificationFileExtension Value ..." + notificationFileExtension);
             buff_buff.newLine();
         }
@@ -541,7 +538,7 @@ public class DeliveryService implements IDeliveryService {
                     }
                     sftp_client.put(sftp_files_tobe_delivered_array[6], remoteDirectory + sftp_files_tobe_delivered_array[0]);
                 } catch (SftpException fd) {
-                    del_service_log.error(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- SFTP PUT error occurred. This is fatal." + fd.getMessage() + ", For Consumer is : " + deliveryDetails.getConsumerCode());
+                    log.error(LocalDateTime.now() + ": Thread.Name :-  " + threadName + " :- SFTP PUT error occurred. This is fatal." + fd.getMessage() + ", For Consumer is : " + deliveryDetails.getConsumerCode());
                     sftp_delivery_status = "92";
                     if (sftp_tmp_error_count == 0) {
                         sftp_error_count++;
@@ -563,7 +560,7 @@ public class DeliveryService implements IDeliveryService {
                                 sftp_client.rename(remoteDirectory + sftp_files_tobe_delivered_array[0], remoteDirectory + sftp_files_tobe_delivered_array[2]);
 
                             } catch (SftpException re) {
-                                del_service_log.error(": Thread.Name :-  " + threadName + " :-SANGOMA !!! When Renaming SFTP delivery file After CHMOD :: Deliver with TempName From, " + sftp_files_tobe_delivered_array[0] + "  :TO: " + sftp_files_tobe_delivered_array[2] +
+                                log.error(": Thread.Name :-  " + threadName + " :-SANGOMA !!! When Renaming SFTP delivery file After CHMOD :: Deliver with TempName From, " + sftp_files_tobe_delivered_array[0] + "  :TO: " + sftp_files_tobe_delivered_array[2] +
                                         " :: Could not be Named " + re.getMessage() + ", Consumer is : " + deliveryDetails.getConsumerCode());
 
                                 sftp_delivery_status = "92";
@@ -585,7 +582,7 @@ public class DeliveryService implements IDeliveryService {
                     sftp_client.put(sftp_files_tobe_delivered_array[6], remoteDirectory + sftp_files_tobe_delivered_array[2]);
 
                 } catch (SftpException sftpPutEx) {
-                    del_service_log.error(": Thread.Name :-  " + threadName + " :- SFTP Put with final name returned error. ... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() + " :: ROUTE_SHORT_NAME:- " + deliveryDetails.getRouteShortName() + ", " + sftpPutEx.getMessage());
+                    log.error(": Thread.Name :-  " + threadName + " :- SFTP Put with final name returned error. ... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() + " :: ROUTE_SHORT_NAME:- " + deliveryDetails.getRouteShortName() + ", " + sftpPutEx.getMessage());
                     sftp_delivery_status = "92";
                     if (sftp_tmp_error_count == 0) {
                         if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
@@ -611,7 +608,7 @@ public class DeliveryService implements IDeliveryService {
                 try {
                     sftp_client.put(notificationSourceFile, remoteDirectory + notificationFileName);
                 } catch (SftpException sftpPutEx) {
-                    del_service_log.error(new Date().toString() + ": Thread.Name :-  " + threadName + " :- SFTP notification file PUT returned error... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() + " :: ROUTE_SHORT_NAME:- " + deliveryDetails.getRouteShortName() + ", " + sftpPutEx.getMessage());
+                    log.error(new Date().toString() + ": Thread.Name :-  " + threadName + " :- SFTP notification file PUT returned error... CONSUMER_CODE is :- " + deliveryDetails.getConsumerCode() + " :: ROUTE_SHORT_NAME:- " + deliveryDetails.getRouteShortName() + ", " + sftpPutEx.getMessage());
                     sftp_delivery_status = "92";
                     if (Math.round((double) (sftp_error_count + 1) / 1 * 100) >= deliveryDetails.getDeliveryDetailsEntity().getDeliveryFailureRate()) { //Still not reached failure limit so continue to fail files
                         if (doesSFGFilExist(localDirectory + sftp_files_tobe_delivered_array[0])) {
@@ -776,7 +773,7 @@ public class DeliveryService implements IDeliveryService {
                     try {
                         osCopyService.copyToOS(oscopy_files_tobe_delivered_array[6], remoteDirectory + oscopy_files_tobe_delivered_array[0]);
                     } catch (IOException e) {
-                        del_service_log.info(" : Thread.Name :-  " + threadName + " :- Error Rate Calculation Value :- ");
+                        log.info(" : Thread.Name :-  " + threadName + " :- Error Rate Calculation Value :- ");
                         buff_buff.write(LocalDateTime.now() + " : Thread.Name :-  " + threadName + " :- Error Rate Calculation Value :- ");
                         buff_buff.newLine();
                         if (oscopy_tmp_error_count == 0) {
@@ -1077,7 +1074,7 @@ public class DeliveryService implements IDeliveryService {
                 Runtime.getRuntime().exec("chmod " + chmod + " " + path_to_file_name);
                 break;
             default:
-                del_service_log.error(":: ===> No Protocols specified for consumerProtocolChangePermissions().. " + "\n ConsumerProtocol :=> " + protocol);
+                log.error(":: ===> No Protocols specified for consumerProtocolChangePermissions().. " + "\n ConsumerProtocol :=> " + protocol);
         }
     }
 
@@ -1190,7 +1187,7 @@ public class DeliveryService implements IDeliveryService {
             if (e.id == channelSftp.SSH_FX_NO_SUCH_FILE) {
                 return false;
             }
-            del_service_log.error(new Date().toString() + " Unexpected exception during ls files on sftp: [{}:{}]", e.id, e.getMessage());
+            log.error(new Date().toString() + " Unexpected exception during ls files on sftp: [{}:{}]", e.id, e.getMessage());
         }
         return check_results != null && !check_results.isEmpty();
     }
@@ -1201,15 +1198,15 @@ public class DeliveryService implements IDeliveryService {
         Path delete_directory = Paths.get(localDirectory + fileName);
         System.out.println("+++++++++++++DELETE Directory = " + localDirectory +  fileName);
         Files.delete(delete_directory);
-        del_service_log.info(new Date().toString() + ": Deleted Temp Directory  : - " + localDirectory + fileName + ".....");
+        log.info(new Date().toString() + ": Deleted Temp Directory  : - " + localDirectory + fileName + ".....");
     }
 
     private boolean autoSuspendDelivery(String consumerCode, String routeShortName){
-        del_service_log.info(new Date().toString() + ": Auto Suspending Delivery : "+ consumerCode  + "  : Route Short Name :-  " + routeShortName );
+        log.info(new Date().toString() + ": Auto Suspending Delivery : "+ consumerCode  + "  : Route Short Name :-  " + routeShortName );
         if (updateStatusForDeliverySuspension(consumerCode, routeShortName) > 0 ){
             return true;
         }else {
-            del_service_log.info(new Date().toString() + ": Auto Suspending Delivery For : "+ consumerCode  + "  : Route Short Name :-  " + routeShortName + "  FAILED !!!!" );
+            log.info(new Date().toString() + ": Auto Suspending Delivery For : "+ consumerCode  + "  : Route Short Name :-  " + routeShortName + "  FAILED !!!!" );
             return false;
         }
     }
@@ -1222,9 +1219,9 @@ public class DeliveryService implements IDeliveryService {
         pendingDeliveriesRepository.deleteByPdUid(pd_uid);
         boolean isFound = pendingDeliveriesRepository.existsByPdUid(pd_uid);
         if (!isFound){
-            del_service_log.info(new Date().toString() + ":  File Record of PD_UID :- "+ pd_uid+ "  has been deleted");
+            log.info(new Date().toString() + ":  File Record of PD_UID :- "+ pd_uid+ "  has been deleted");
         }else {
-            del_service_log.warn(new Date().toString() + ":  Problems Deleting File Record of PD_UID :- "+pd_uid+ " Please Investigate..");
+            log.warn(new Date().toString() + ":  Problems Deleting File Record of PD_UID :- "+pd_uid+ " Please Investigate..");
         }
     }
     private void deletePendingDeliveriesFilesByConsumerCodeAndRouteShortName(String consumer_code, String route_short_name) {
@@ -1232,9 +1229,9 @@ public class DeliveryService implements IDeliveryService {
         pendingDeliveriesRepository.deleteAllByConsumerCodeAndRouteShortName(consumer_code, route_short_name);
         boolean isFound = pendingDeliveriesRepository.existsByConsumerCodeAndRouteShortName(consumer_code, route_short_name);
         if (!isFound){
-            del_service_log.info(new Date().toString() + ":  Consumer Record :- "+ consumer_code+ " with Route Short Name: " + route_short_name+ " has been deleted");
+            log.info(new Date().toString() + ":  Consumer Record :- "+ consumer_code+ " with Route Short Name: " + route_short_name+ " has been deleted");
         }else {
-            del_service_log.warn(new Date().toString() + ":  Problems Deleting Consumer Record:- "+consumer_code+ "with Route Short Name: " + route_short_name+ " Please Investigate..");
+            log.warn(new Date().toString() + ":  Problems Deleting Consumer Record:- "+consumer_code+ "with Route Short Name: " + route_short_name+ " Please Investigate..");
         }
     }
 
@@ -1251,7 +1248,7 @@ public class DeliveryService implements IDeliveryService {
     }
     private String getRPADSqlStringValue(String string_value){
         String value_of_sub = null;
-        del_service_log.info(new Date().toString() + ": RPAD SQL Value Before: " + string_value + " of Length :- : " + string_value.length() );
+        log.info(new Date().toString() + ": RPAD SQL Value Before: " + string_value + " of Length :- : " + string_value.length() );
 
         if  (string_value != null) {
             if (string_value.length() > 24) {
@@ -1259,13 +1256,13 @@ public class DeliveryService implements IDeliveryService {
             } else {
                 value_of_sub = string_value;
                 int count = 24 - string_value.length();
-                del_service_log.info(new Date().toString() + ": COUNT VALUE FOR XTERS TO ADDED  :- " + count);
+                log.info(new Date().toString() + ": COUNT VALUE FOR XTERS TO ADDED  :- " + count);
                 for (int i =1; i<=count; i++ ) {
                     value_of_sub = value_of_sub + " ";
                 }
             }
         }
-        del_service_log.info(new Date().toString() + ": Value : " + value_of_sub + ":of Length :- : " + value_of_sub.length());
+        log.info(new Date().toString() + ": Value : " + value_of_sub + ":of Length :- : " + value_of_sub.length());
         return value_of_sub;
     }
     private long calculateFailureRateValue(int error_count, int total_file_count){
@@ -1304,13 +1301,13 @@ public class DeliveryService implements IDeliveryService {
                 bw_cmp.newLine();
             }
         }catch(IOException ex){
-            del_service_log.error(new Date().toString() + " : Error occured while trying to uncompress file. "+ ex.getLocalizedMessage());
+            log.error(new Date().toString() + " : Error occured while trying to uncompress file. "+ ex.getLocalizedMessage());
         }
         return final_uncompressed_file;
     }
      private boolean doesSFGFilExist(String sfg_fs_file){
 
-         del_service_log.info("About to check if SFG File exists in the FileSystem : - > " + sfg_fs_file);
+         log.info("About to check if SFG File exists in the FileSystem : - > " + sfg_fs_file);
         boolean sfg_file_fs =  new File(sfg_fs_file).exists();
 
         return sfg_file_fs;

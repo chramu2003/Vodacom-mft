@@ -43,7 +43,6 @@ public class CompressService implements ICompressService {
                                String threadName,
                                BufferedWriter bw_cmp) throws IOException {
 
-        String compressed_file_name = "";
         String file_name_value_2 = "";
         String file_name_value_6 = "";
         String final_compressed_file = "";

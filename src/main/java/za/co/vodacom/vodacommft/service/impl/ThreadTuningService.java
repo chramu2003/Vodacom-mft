@@ -1,8 +1,7 @@
 package za.co.vodacom.vodacommft.service.impl;
 
-import com.jcraft.jsch.SftpException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import za.co.vodacom.vodacommft.dto.DeliveryDetailsDTO;
 import za.co.vodacom.vodacommft.service.IDeliveryDetailsService;
@@ -25,20 +24,24 @@ import java.util.concurrent.ThreadPoolExecutor;
 @SuppressWarnings("all")
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ThreadTuningService implements IThreadTuningService {
 
     private ThreadPoolExecutor threadPoolExecutorTen = null;
     private ThreadPoolExecutor threadPoolExecutorFive = null;
     private ThreadPoolExecutor threadPoolExecutorTwo = null;
 
-    final private IDeliveryDetailsService deliveryDetailsService;
-    final private IDeliveryService deliveryService;
-    final private IDirectoryService directory_service;
+    @Autowired
+    private IDeliveryDetailsService deliveryDetailsService;
+
+    @Autowired
+    private IDeliveryService deliveryService;
+
+    @Autowired
+    private IDirectoryService directory_service;
 
 
     @Override
-    public void doFileProcessingWithThreads(String consumerCode, String routeShortName, String workDirectory, String localDirectory) throws IOException {
+    public void doFileProcessing(String consumerCode, String routeShortName, String workDirectory, String localDirectory) throws IOException {
 
         BufferedWriter bw_del = null;
         try {
@@ -56,13 +59,15 @@ public class ThreadTuningService implements IThreadTuningService {
                 List<String> files = deliveryDetails.getList_of_file_metadata();
                 int fileCount = files.size();
 
-                if (fileCount > 0 && fileCount <= 100) {
+                /*if (fileCount > 0 && fileCount <= 100) {
                     doDeliveryWithTwoThreads(deliveryDetails, fileCount);
                 } else if (fileCount > 100 && fileCount <= 500) {
                     doDeliveryWithFiveThreads(deliveryDetails, fileCount);
                 } else if (fileCount > 500) {
                     doDeliveryWithTenThreads(deliveryDetails, fileCount);
-                }
+                }*/
+
+                doDeliveryWithTenThreads(deliveryDetails, fileCount);
             }
 
         }catch (IOException e){
