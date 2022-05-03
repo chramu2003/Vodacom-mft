@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.vodacom.vodacommft.service.IFileDeliveryService;
 
+import java.util.concurrent.ForkJoinPool;
+
 
 @RestController
 @RequestMapping("/v1/deliver")
@@ -25,9 +27,9 @@ public class DeliveryController {
     public ResponseEntity updateTodo(@PathVariable String consumerCode, @PathVariable String routeShortName){
 
         try {
-            System.out.println("check1*************************************************** ");
 //            deliveryProcessing(consumerCode, routeShortName);
-            return new ResponseEntity<>(HttpStatus.OK);
+            System.out.println("Check >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ");
+            return ResponseEntity.ok().body("Async service started running");
         } catch (Exception e) {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }

@@ -1,0 +1,22 @@
+---
+- name: delete kubernetes temp dir if it exist
+  file:
+    path: "{{working_dir}}"
+    state: absent
+- name: create kubernetes temp dir
+  file:
+    path: "{{working_dir}}"
+    state: directory
+    mode: 0755
+- name: copy kubernetes templates
+  template:
+     src: "{{item}}"
+     dest: "{{working_dir}}/{{item}}"
+  with_items: "{{kube_files}}"
+- name: deploy app to kubernetes
+  command: "kubectl apply -f {{working_dir}}/{{item}}"
+  with_items: "{{kube_files}}"
+#- name: delete deployment temp dir after deployment
+#  file:
+#    path: "{{working_dir}}"
+#    state: absent

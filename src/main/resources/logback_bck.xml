@@ -8,7 +8,7 @@
 
     <appender name = "FILE" class = "ch.qos.logback.core.FileAppender">
        <!--<File>/sfg_prd/sfg_files/data/deliveries/logs/delivery_sys.log</File>-->
-        <File>//Users/rchennupati/Documents/momentum/Personal/vodacom/logs/delivery_sys.log</File>
+<!--        <File>/Users/rchennupati/Documents/Personal/vodacom/logs/delivery_sys.log</File>-->
         <!--<File>${app.SFG_ENV}/{app.LOGBACK_FILE}</File>-->
         <encoder>
             <pattern>[%d{yyyy-MM-dd'T'HH:mm:ss.sss'Z'}] [%-5p] %m%n</pattern>

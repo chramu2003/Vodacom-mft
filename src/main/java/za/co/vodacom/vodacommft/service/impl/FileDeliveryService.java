@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import za.co.vodacom.vodacommft.config.PropertiesFileSysConfig;
 import za.co.vodacom.vodacommft.service.IDirectoryService;
 import za.co.vodacom.vodacommft.service.IFileDeliveryService;
-import za.co.vodacom.vodacommft.service.IThreadTuningService;
+import za.co.vodacom.vodacommft.service.IThreadTuningService1;
 
 @Service
 @RequiredArgsConstructor
@@ -20,7 +20,7 @@ public class FileDeliveryService implements IFileDeliveryService {
 
     final private IDirectoryService directory_service;
 
-    final private IThreadTuningService threadTuningService;
+    final private IThreadTuningService1 threadTuningService;
 
     @Override
     @SneakyThrows
