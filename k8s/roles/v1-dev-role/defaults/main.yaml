@@ -1,0 +1,14 @@
+---
+mft_namespace: mft
+working_dir: /tmp/sse/deployment/kubernetes
+
+ingress_host: sse-uc-dev.mmih.biz
+container_replica_amount : 2
+
+container_image_server : hub.docker.com
+container_image_version : latest
+
+cpu_max: 50m
+memory_max: 128Mi
+cpu_requests: 50m
+memory_requests: 64Mi

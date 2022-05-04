@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: "{{mft_namespace}}"
+  name: mftservices
+  labels:
+    app: mftservices
+spec:
+  replicas: {{container_replica_amount}}
+  #variabalize
+  selector:
+    matchLabels:
+      app: mftservices
+  template:
+    metadata:
+      name: mftservices
+      labels:
+        app: mftservices
+        #add more to filter on this like version number , and what it does
+    spec:
+      containers:
+        - name: mftservices
+          image: chramu2003/mftservices:latest
+          imagePullPolicy: "Always"
+          ports:
+          - containerPort: 8080
+          volumeMounts:
+          - name: mft-properties
+            mountPath: /data/config/eftservices/properties/
+#          resources:
+#            limits:
+#              cpu: {{cpu_max}}
+#              memory: {{memory_max}}
+#            requests:
+#              cpu: {{cpu_requests}}
+#              memory: {{memory_requests}}
+      volumes:
+      - name: mft-properties
+        hostPath:
+          path: /Users/rchennupati/Documents/Personal/vodacom
+      imagePullSecrets:
+        - name: regcred

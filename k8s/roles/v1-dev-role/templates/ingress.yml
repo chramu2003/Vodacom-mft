@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: {{mft_namespace}}
+  name: mftservices
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+        - path: /mftservices
+          pathType: Prefix
+          backend:
+            service:
+              name: mftservices
+              port:
+                number: 8080

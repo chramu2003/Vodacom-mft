@@ -1,0 +1,13 @@
+---
+- hosts: localhost
+  become: false
+  gather_facts: no
+  vars:
+    namespace: "{{mft_namespace}}"
+    kube_files:
+          - secrets.yml
+          - deployment.yml
+          - service.yml
+          - ingress.yml
+  roles:
+    - v1-dev-role

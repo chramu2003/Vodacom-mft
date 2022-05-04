@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: mftservices
+spec:
+  upstreams:
+    - name: mftservices-stream
+      service: mftservices
+      port: 8080
+  routes:
+    - path: /
+      action:
+        pass: mftservices-stream
