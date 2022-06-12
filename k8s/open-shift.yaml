@@ -1,0 +1,263 @@
+#!/usr/bin/groovy
+
+  def runpipeline() {
+  def allJob = env.JOB_NAME.tokenize('/') as String[];
+  def job = allJob[0];
+  def branchName = env.BRANCH_NAME
+
+  // App name setting
+  appName = "${job}"
+
+  echo "Running job [${job}] on branch [${branchName}]"
+  echo "appName is ${job}"
+
+  if (branchName.equals("master")) {
+  node {
+  echo "Running job for master."
+
+  stage('Project Selection') {
+timeout(time: 45, unit: 'SECONDS') {
+                          script {
+                          // Show the select input model
+                          projectSelect = input id: 'test', message: 'Destination project.', ok: 'Proceed?', parameters: [choice(choices: 'debs-dev\ndebs-qa\ndebs-prod', description: 'Please select the project.', name: 'environment')]
+                          project = projectSelect
+}
+}
+
+}
+
+  stage('CheckOut') {
+  deleteDir()
+  checkout scm
+}
+
+  stage('Package Build') {
+
+  // Artifact version setting
+  version = readMavenPom().getVersion()
+
+  sh "/usr/local/applications/Tools/MVN3_EB/bin/mvn clean package -DskipTests=true -U"
+
+}
+
+  stage('Build Docker Image') {
+
+withCredentials([usernamePassword(credentialsId: 'OC_logon', usernameVariable: 'contUser', passwordVariable: 'contPass')]) {
+                                                                                                               try {
+                                                                                                               // Log on to OpenShift and get the token and store
+                                                                                                               sh """
+                                                                                                               /usr/local/applications/Tools/OpenShift/oc login https://master.oseza.discsrv.co.za:8443 --username=$contUser --password=$contPass
+                                                                                                               /usr/local/applications/Tools/OpenShift/oc whoami -t > token.txt
+                                                                                                               """
+
+                        // Retrieve the token
+                        contToken = new File("$WORKSPACE/token.txt").readLines().get(0)
+
+                                                                                                               if (project == 'debs-dev'){
+
+                                                                                                               // Build and push the image to Docker reg
+                                                                                                               sh """
+                                                                                                               docker login -u $contUser -p $contToken registry.oseza.discsrv.co.za
+                                                                                                               docker build -t registry.oseza.discsrv.co.za/debs-dev/${appName}:${version}.${currentBuild.number} $WORKSPACE
+                                                                                                               docker push registry.oseza.discsrv.co.za/debs-dev/${appName}:${version}.${currentBuild.number}
+                                                                                                               """
+                        }else if (project == 'debs-qa'){
+
+                            // Build and push the image to Docker reg
+                            sh """
+                                                                                                               docker login -u $contUser -p $contToken registry.oseza.discsrv.co.za
+                                                                                                               docker build -t registry.oseza.discsrv.co.za/debs-qa/${appName}:${version}.${currentBuild.number} $WORKSPACE
+                                                                                                               docker push registry.oseza.discsrv.co.za/debs-qa/${appName}:${version}.${currentBuild.number}
+                                                                                                               """
+                        }else if (project == 'debs-prod'){
+
+                        // Build and push the image to Docker reg
+                        sh """
+                                                                                                               docker login -u $contUser -p $contToken registry.oseza.discsrv.co.za
+                                                                                                               docker build -t registry.oseza.discsrv.co.za/debs-prod/${appName}:${version}.${currentBuild.number} $WORKSPACE
+                                                                                                               docker push registry.oseza.discsrv.co.za/debs-prod/${appName}:${version}.${currentBuild.number}
+                                                                                                               """
+                        }
+
+                    }
+                    catch (Exception e) {
+                        println "Failed to Build Docker Image - ${currentBuild.fullDisplayName}"
+                                                                                                               throw e
+}
+}
+}
+  stage('Deploying to OpenShift') {
+  try {
+  if (project == 'debs-dev'){
+
+  sh "/usr/local/applications/Tools/OpenShift/oc set image -n debs-dev dc/${appName} ${appName}=${appName}:${version}.${currentBuild.number} --source=imagestreamtag"
+
+}else if (project == 'debs-qa'){
+
+  sh "/usr/local/applications/Tools/OpenShift/oc set image -n debs-qa dc/${appName} ${appName}=${appName}:${version}.${currentBuild.number} --source=imagestreamtag"
+
+}else if (project == 'debs-prod'){
+
+println "PLEASE NOTE: The image did not deploy since this PROD. Please follow the procedure to get it deployed."
+
+}
+}
+  catch (Exception e) {
+  println "Failed to deploy on OpenShift Cluster - ${currentBuild.fullDisplayName}"
+  throw e
+}
+}
+}
+}
+
+
+  else if (branchName.contains("dev-release")) {
+  node {
+  echo "Running job for dev-release."
+
+  stage('Project Selection') {
+timeout(time: 45, unit: 'SECONDS') {
+                          script {
+                          // Show the select input model
+                          projectSelect = input id: 'test', message: 'Destination project.', ok: 'Proceed?', parameters: [choice(choices: 'debs-dev\ndebs-qa\ndebs-prod', description: 'Please select the project.', name: 'environment')]
+                          project = projectSelect
+}
+}
+
+}
+
+  stage('CheckOut') {
+  deleteDir()
+  checkout scm
+}
+
+  stage('Package Build') {
+
+  // Artifact version setting
+  version = readMavenPom().getVersion()
+
+  sh "/usr/local/applications/Tools/MVN3_EB/bin/mvn clean package -DskipTests=true -U"
+
+}
+
+  stage('Build Docker Image') {
+
+withCredentials([usernamePassword(credentialsId: 'OC_logon', usernameVariable: 'contUser', passwordVariable: 'contPass')]) {
+                                                                                                               try {
+                                                                                                               // Log on to OpenShift and get the token and store
+                                                                                                               sh """
+                                                                                                               /usr/local/applications/Tools/OpenShift/oc login https://master.oseza.discsrv.co.za:8443 --username=$contUser --password=$contPass
+                                                                                                               /usr/local/applications/Tools/OpenShift/oc whoami -t > token.txt
+                                                                                                               """
+
+                        // Retrieve the token
+                        contToken = new File("$WORKSPACE/token.txt").readLines().get(0)
+
+                                                                                                               if (project == 'debs-dev'){
+
+                                                                                                               // Build and push the image to Docker reg
+                                                                                                               sh """
+                                                                                                               docker login -u $contUser -p $contToken registry.oseza.discsrv.co.za
+                                                                                                               docker build -t registry.oseza.discsrv.co.za/debs-dev/${appName}:${version}.${currentBuild.number} $WORKSPACE
+                                                                                                               docker push registry.oseza.discsrv.co.za/debs-dev/${appName}:${version}.${currentBuild.number}
+                                                                                                               """
+                        }else if (project == 'debs-qa'){
+
+                            // Build and push the image to Docker reg
+                            sh """
+                                                                                                               docker login -u $contUser -p $contToken registry.oseza.discsrv.co.za
+                                                                                                               docker build -t registry.oseza.discsrv.co.za/debs-qa/${appName}:${version}.${currentBuild.number} $WORKSPACE
+                                                                                                               docker push registry.oseza.discsrv.co.za/debs-qa/${appName}:${version}.${currentBuild.number}
+                                                                                                               """
+                        }else if (project == 'debs-prod'){
+
+                            // Build and push the image to Docker reg
+                            sh """
+                                                                                                               docker login -u $contUser -p $contToken registry.oseza.discsrv.co.za
+                                                                                                               docker build -t registry.oseza.discsrv.co.za/debs-prod/${appName}:${version}.${currentBuild.number} $WORKSPACE
+                                                                                                               docker push registry.oseza.discsrv.co.za/debs-prod/${appName}:${version}.${currentBuild.number}
+                                                                                                               """
+                        }
+
+                    }
+                    catch (Exception e) {
+                        println "Failed to Build Docker Image - ${currentBuild.fullDisplayName}"
+                                                                                                               throw e
+}
+}
+}
+  stage('Deploying to OpenShift') {
+  try {
+  if (project == 'debs-dev'){
+
+  sh "/usr/local/applications/Tools/OpenShift/oc set image -n debs-dev dc/${appName} ${appName}=${appName}:${version}.${currentBuild.number} --source=imagestreamtag"
+
+}else if (project == 'debs-qa'){
+
+  sh "/usr/local/applications/Tools/OpenShift/oc set image -n debs-qa dc/${appName} ${appName}=${appName}:${version}.${currentBuild.number} --source=imagestreamtag"
+
+}else if (project == 'debs-prod'){
+
+println "PLEASE NOTE: The image did not deploy since this PROD. Please follow the procedure to get it deployed."
+
+}
+}
+  catch (Exception e) {
+  println "Failed to deploy on OpenShift Cluster - ${currentBuild.fullDisplayName}"
+  throw e
+}
+}
+}
+}
+
+  else if (branchName.contains("feature")) {
+  node {
+
+  stage('CheckOut') {
+  deleteDir()
+  checkout scm
+}
+
+  stage('Package Build') {
+
+  // Artifact version setting
+  version = readMavenPom().getVersion()
+
+  sh "/usr/local/applications/Tools/MVN3_EB/bin/mvn clean package -DskipTests=true -U"
+
+}
+
+}
+
+}
+
+  else if (branchName.contains("hotfix")) {
+  node {
+
+  stage('CheckOut') {
+  deleteDir()
+  checkout scm
+}
+
+  stage('Package Build') {
+
+  // Artifact version setting
+  version = readMavenPom().getVersion()
+
+  sh "/usr/local/applications/Tools/MVN3_EB/bin/mvn clean package -DskipTests=true -U"
+
+}
+
+}
+
+}
+
+  else {
+
+throw new Exception( "ERROR: YOUR BRANCH NAME IS INVALID... This pipeline can only build the master, dev-release, feature and hotfix branches.")
+
+  return 0
+}
+}
+
+  return this
