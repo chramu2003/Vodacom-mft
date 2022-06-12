@@ -1,8 +1,8 @@
 ---
 mft_namespace: mft
-working_dir: /tmp/sse/deployment/kubernetes
+working_dir: /tmp/mft/deployment/kubernetes
 
-ingress_host: sse-uc-dev.mmih.biz
+#ingress_host: test.ingress.dev.vodacom.co.za
 container_replica_amount : 2
 
 container_image_server : hub.docker.com
